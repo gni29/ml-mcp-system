@@ -1,0 +1,208 @@
+# .gitignore 파일 새로 작성
+cat > .gitignore << 'EOF'
+# ====================
+# Dependencies
+# ====================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# Python
+venv/
+env/
+ENV/
+python-env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ====================
+# Runtime & Cache
+# ====================
+data/state/
+data/cache/
+data/logs/
+logs/
+*.log
+npm-debug.log*
+.npm
+.node_repl_history
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# ====================
+# Environment & Config
+# ====================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*
+
+# ====================
+# AI Models & Data
+# ====================
+# Large model files
+models/*.bin
+models/*.safetensors
+models/*.gguf
+models/*.pt
+models/*.pth
+models/*.h5
+models/*.pkl
+models/*.joblib
+
+# Ollama models (usually in ~/.ollama/)
+.ollama/
+
+# Training data & outputs
+checkpoints/
+trained_models/
+model_outputs/
+
+# ====================
+# OS Generated Files
+# ====================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# Windows
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.nfs*
+
+# ====================
+# IDE & Editors
+# ====================
+# VSCode
+.vscode/
+*.code-workspace
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ====================
+# Development Tools
+# ====================
+# Coverage reports
+coverage/
+*.lcov
+.nyc_output
+
+# ESLint cache
+.eslintcache
+
+# Prettier
+.prettierignore
+
+# TypeScript
+*.tsbuildinfo
+
+# ====================
+# Build & Distribution
+# ====================
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# Electron builds
+app-builds/
+release/
+
+# ====================
+# Jupyter Notebooks
+# ====================
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# ====================
+# R (if used)
+# ====================
+.Rhistory
+.RData
+.Ruserdata
+
+# ====================
+# Docker
+# ====================
+.dockerignore
+docker-compose.override.yml
+
+# ====================
+# Git
+# ====================
+*.orig
+*.rej
+
+# ====================
+# Backup files
+# ====================
+*.bak
+*.backup
+*.old
+
+# ====================
+# Project Specific
+# ====================
+# MCP specific runtime files
+mcp-server.pid
+ollama.pid
+
+# User uploaded data
+user_data/
+uploads/
+
+# Test outputs
+test_results/
+screenshots/
+
+# Local configuration overrides
+local.config.js
+local.config.json
+
+# Performance logs
+perf.log
+memory.log
+EOF

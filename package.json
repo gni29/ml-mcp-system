@@ -1,0 +1,24 @@
+{
+  "name": "ml-mcp-high-performance",
+  "version": "1.0.0",
+  "description": "고성능 ML/데이터분석 MCP 시스템",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "dev": "node --inspect main.js",
+    "setup": "./install.sh",
+    "models": "node scripts/setup-models.js",
+    "test": "node test/integration.test.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "axios": "^1.6.0",
+    "winston": "^3.11.0",
+    "node-cache": "^5.1.2",
+    "systeminformation": "^5.21.0"
+  },
+  "keywords": ["mcp", "machine-learning", "data-analysis", "llm"],
+  "author": "Your Name",
+  "license": "MIT"
+}
