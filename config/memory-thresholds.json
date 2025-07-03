@@ -1,0 +1,17 @@
+{
+  "router": {
+    "maxMemoryMB": 6000,
+    "warningThresholdMB": 5000,
+    "autoUnload": false
+  },
+  "processor": {
+    "maxMemoryMB": 28000,
+    "warningThresholdMB": 25000,
+    "autoUnload": true,
+    "autoUnloadTimeoutMs": 600000
+  },
+  "system": {
+    "maxTotalMemoryMB": 32000,
+    "emergencyThresholdMB": 30000
+  }
+}

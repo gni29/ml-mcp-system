@@ -1,5 +1,3 @@
-# config/routing-rules.json
-cat > config/routing-rules.json << 'EOF'
 {
   "simple_queries": {
     "keywords": ["안녕", "도움말", "상태", "모드"],
@@ -18,25 +16,3 @@ cat > config/routing-rules.json << 'EOF'
     "target": "both"
   }
 }
-EOF
-
-# config/memory-thresholds.json
-cat > config/memory-thresholds.json << 'EOF'
-{
-  "router": {
-    "maxMemoryMB": 6000,
-    "warningThresholdMB": 5000,
-    "autoUnload": false
-  },
-  "processor": {
-    "maxMemoryMB": 28000,
-    "warningThresholdMB": 25000,
-    "autoUnload": true,
-    "autoUnloadTimeoutMs": 600000
-  },
-  "system": {
-    "maxTotalMemoryMB": 32000,
-    "emergencyThresholdMB": 30000
-  }
-}
-EOF
