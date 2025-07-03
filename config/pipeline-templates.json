@@ -1,0 +1,236 @@
+{
+  "common_workflows": {
+    "basic_analysis": {
+      "name": "기본 데이터 분석",
+      "description": "기본 통계 → 상관관계 → 분포 분석",
+      "steps": [
+        {
+          "type": "basic",
+          "method": "descriptive_stats",
+          "params": {}
+        },
+        {
+          "type": "basic",
+          "method": "correlation",
+          "params": {}
+        },
+        {
+          "type": "basic",
+          "method": "distribution",
+          "params": {}
+        }
+      ]
+    },
+    "correlation_feature_engineering": {
+      "name": "상관관계 기반 피처 엔지니어링",
+      "description": "상관관계 분석 → 파생변수 생성",
+      "steps": [
+        {
+          "type": "basic",
+          "method": "correlation",
+          "params": {}
+        },
+        {
+          "type": "advanced",
+          "method": "feature_engineering",
+          "params": {
+            "use_correlation": true
+          }
+        }
+      ]
+    },
+    "outlier_cleaning": {
+      "name": "이상치 탐지 및 제거",
+      "description": "이상치 탐지 → 데이터 정제 → 기본 분석",
+      "steps": [
+        {
+          "type": "advanced",
+          "method": "outlier_detection",
+          "params": {}
+        },
+        {
+          "type": "basic",
+          "method": "descriptive_stats",
+          "params": {
+            "after_cleaning": true
+          }
+        }
+      ]
+    }
+  },
+  "ml_workflows": {
+    "pca_visualization": {
+      "name": "PCA 차원축소 시각화",
+      "description": "PCA 차원축소 → 3D 시각화",
+      "steps": [
+        {
+          "type": "advanced",
+          "method": "pca",
+          "params": {
+            "n_components": 3
+          }
+        },
+        {
+          "type": "visualization",
+          "method": "3d.scatter_3d",
+          "params": {
+            "use_pca_result": true
+          }
+        }
+      ]
+    },
+    "clustering_analysis": {
+      "name": "클러스터링 분석",
+      "description": "클러스터링 → 시각화 → 결과 분석",
+      "steps": [
+        {
+          "type": "ml_traditional",
+          "method": "unsupervised.clustering.kmeans",
+          "params": {
+            "n_clusters": "auto"
+          }
+        },
+        {
+          "type": "visualization",
+          "method": "2d.scatter",
+          "params": {
+            "color_by_cluster": true
+          }
+        },
+        {
+          "type": "basic",
+          "method": "descriptive_stats",
+          "params": {
+            "group_by_cluster": true
+          }
+        }
+      ]
+    },
+    "full_ml_pipeline": {
+      "name": "완전한 ML 파이프라인",
+      "description": "전처리 → 피처 엔지니어링 → 모델 훈련 → 평가",
+      "steps": [
+        {
+          "type": "advanced",
+          "method": "outlier_detection",
+          "params": {}
+        },
+        {
+          "type": "basic",
+          "method": "correlation",
+          "params": {}
+        },
+        {
+          "type": "advanced",
+          "method": "feature_engineering",
+          "params": {
+            "use_correlation": true
+          }
+        },
+        {
+          "type": "ml_traditional",
+          "method": "supervised.regression.random_forest",
+          "params": {
+            "cross_validation": true
+          }
+        },
+        {
+          "type": "visualization",
+          "method": "2d.scatter",
+          "params": {
+            "actual_vs_predicted": true
+          }
+        }
+      ]
+    }
+  },
+  "time_series_workflows": {
+    "complete_time_series": {
+      "name": "완전한 시계열 분석",
+      "description": "트렌드 → 계절성 → 예측",
+      "steps": [
+        {
+          "type": "timeseries",
+          "method": "trend_analysis",
+          "params": {}
+        },
+        {
+          "type": "timeseries",
+          "method": "seasonality",
+          "params": {}
+        },
+        {
+          "type": "timeseries",
+          "method": "forecasting",
+          "params": {
+            "periods": 30
+          }
+        },
+        {
+          "type": "visualization",
+          "method": "2d.line",
+          "params": {
+            "include_forecast": true
+          }
+        }
+      ]
+    }
+  },
+  "visualization_workflows": {
+    "comprehensive_visualization": {
+      "name": "종합 시각화",
+      "description": "다양한 차트로 데이터 탐색",
+      "steps": [
+        {
+          "type": "visualization",
+          "method": "2d.scatter",
+          "params": {}
+        },
+        {
+          "type": "visualization",
+          "method": "2d.heatmap",
+          "params": {
+            "correlation_matrix": true
+          }
+        },
+        {
+          "type": "visualization",
+          "method": "interactive.plotly",
+          "params": {
+            "chart_type": "scatter_matrix"
+          }
+        }
+      ]
+    }
+  },
+  "comparison_workflows": {
+    "model_comparison": {
+      "name": "모델 비교 분석",
+      "description": "여러 모델 훈련 및 성능 비교",
+      "steps": [
+        {
+          "type": "ml_traditional",
+          "method": "supervised.regression.linear",
+          "params": {}
+        },
+        {
+          "type": "ml_traditional",
+          "method": "supervised.regression.random_forest",
+          "params": {}
+        },
+        {
+          "type": "ml_traditional",
+          "method": "supervised.regression.xgboost",
+          "params": {}
+        },
+        {
+          "type": "visualization",
+          "method": "2d.line",
+          "params": {
+            "model_comparison": true
+          }
+        }
+      ]
+    }
+  }
+}

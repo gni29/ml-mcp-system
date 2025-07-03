@@ -1,0 +1,218 @@
+{
+  "basic": {
+    "descriptive_stats": {
+      "script": "python/analyzers/basic/descriptive_stats.py",
+      "class": "DescriptiveStats",
+      "method": "analyze",
+      "description": "기본 통계 분석 (평균, 표준편차, 분위수 등)"
+    },
+    "correlation": {
+      "script": "python/analyzers/basic/correlation.py",
+      "class": "CorrelationAnalyzer",
+      "method": "analyze",
+      "description": "상관관계 분석 (피어슨, 스피어만 등)"
+    },
+    "distribution": {
+      "script": "python/analyzers/basic/distribution.py",
+      "class": "DistributionAnalyzer",
+      "method": "analyze",
+      "description": "분포 분석 (정규성 검정, 히스토그램 등)"
+    }
+  },
+  "advanced": {
+    "pca": {
+      "script": "python/analyzers/advanced/pca.py",
+      "class": "PCAAnalyzer",
+      "method": "analyze",
+      "description": "주성분 분석 (차원 축소)"
+    },
+    "clustering": {
+      "script": "python/analyzers/advanced/clustering.py",
+      "class": "ClusteringAnalyzer",
+      "method": "analyze",
+      "description": "클러스터링 분석 (K-means, DBSCAN 등)"
+    },
+    "outlier_detection": {
+      "script": "python/analyzers/advanced/outlier_detection.py",
+      "class": "OutlierDetector",
+      "method": "detect",
+      "description": "이상치 탐지 (IQR, Z-score, Isolation Forest 등)"
+    },
+    "feature_engineering": {
+      "script": "python/analyzers/advanced/feature_engineering.py",
+      "class": "FeatureEngineer",
+      "method": "create_features",
+      "description": "파생변수 생성 (상호작용, 다항식 등)"
+    }
+  },
+  "timeseries": {
+    "trend_analysis": {
+      "script": "python/analyzers/timeseries/trend_analysis.py",
+      "class": "TrendAnalyzer",
+      "method": "analyze",
+      "description": "시계열 트렌드 분석"
+    },
+    "seasonality": {
+      "script": "python/analyzers/timeseries/seasonality.py",
+      "class": "SeasonalityAnalyzer",
+      "method": "analyze",
+      "description": "계절성 분석"
+    },
+    "forecasting": {
+      "script": "python/analyzers/timeseries/forecasting.py",
+      "class": "TimeSeriesForecaster",
+      "method": "forecast",
+      "description": "시계열 예측 (ARIMA, Prophet 등)"
+    }
+  },
+  "ml_traditional": {
+    "supervised": {
+      "regression": {
+        "linear": {
+          "script": "python/ml/supervised/regression/linear_regression.py",
+          "class": "LinearRegression",
+          "method": "train_and_evaluate",
+          "description": "선형 회귀"
+        },
+        "random_forest": {
+          "script": "python/ml/supervised/regression/random_forest_regression.py",
+          "class": "RandomForestRegression",
+          "method": "train_and_evaluate",
+          "description": "랜덤 포레스트 회귀"
+        },
+        "xgboost": {
+          "script": "python/ml/supervised/regression/xgboost_regression.py",
+          "class": "XGBoostRegression",
+          "method": "train_and_evaluate",
+          "description": "XGBoost 회귀"
+        }
+      },
+      "classification": {
+        "logistic": {
+          "script": "python/ml/supervised/classification/logistic_regression.py",
+          "class": "LogisticRegression",
+          "method": "train_and_evaluate",
+          "description": "로지스틱 회귀"
+        },
+        "random_forest": {
+          "script": "python/ml/supervised/classification/random_forest.py",
+          "class": "RandomForestClassifier",
+          "method": "train_and_evaluate",
+          "description": "랜덤 포레스트 분류"
+        },
+        "xgboost": {
+          "script": "python/ml/supervised/classification/xgboost_classifier.py",
+          "class": "XGBoostClassifier",
+          "method": "train_and_evaluate",
+          "description": "XGBoost 분류"
+        }
+      },
+      "ensemble": {
+        "voting": {
+          "script": "python/ml/supervised/ensemble/voting_classifier.py",
+          "class": "VotingEnsemble",
+          "method": "train_and_evaluate",
+          "description": "보팅 앙상블"
+        },
+        "stacking": {
+          "script": "python/ml/supervised/ensemble/stacking.py",
+          "class": "StackingEnsemble",
+          "method": "train_and_evaluate",
+          "description": "스태킹 앙상블"
+        }
+      }
+    },
+    "unsupervised": {
+      "clustering": {
+        "kmeans": {
+          "script": "python/ml/unsupervised/clustering/kmeans.py",
+          "class": "KMeansClusterer",
+          "method": "cluster",
+          "description": "K-평균 클러스터링"
+        },
+        "dbscan": {
+          "script": "python/ml/unsupervised/clustering/dbscan.py",
+          "class": "DBSCANClusterer",
+          "method": "cluster",
+          "description": "DBSCAN 클러스터링"
+        },
+        "hierarchical": {
+          "script": "python/ml/unsupervised/clustering/hierarchical.py",
+          "class": "HierarchicalClusterer",
+          "method": "cluster",
+          "description": "계층적 클러스터링"
+        }
+      },
+      "dimensionality_reduction": {
+        "pca": {
+          "script": "python/ml/unsupervised/dimensionality_reduction/pca.py",
+          "class": "PCAReducer",
+          "method": "reduce",
+          "description": "주성분 분석"
+        },
+        "tsne": {
+          "script": "python/ml/unsupervised/dimensionality_reduction/tsne.py",
+          "class": "TSNEReducer",
+          "method": "reduce",
+          "description": "t-SNE 차원 축소"
+        },
+        "umap": {
+          "script": "python/ml/unsupervised/dimensionality_reduction/umap.py",
+          "class": "UMAPReducer",
+          "method": "reduce",
+          "description": "UMAP 차원 축소"
+        }
+      }
+    }
+  },
+  "visualization": {
+    "2d": {
+      "scatter": {
+        "script": "python/visualization/2d/scatter.py",
+        "class": "ScatterPlot",
+        "method": "create",
+        "description": "2D 산점도"
+      },
+      "line": {
+        "script": "python/visualization/2d/line.py",
+        "class": "LinePlot",
+        "method": "create",
+        "description": "선 그래프"
+      },
+      "heatmap": {
+        "script": "python/visualization/2d/heatmap.py",
+        "class": "HeatmapPlot",
+        "method": "create",
+        "description": "히트맵"
+      }
+    },
+    "3d": {
+      "scatter_3d": {
+        "script": "python/visualization/3d/scatter_3d.py",
+        "class": "Scatter3D",
+        "method": "create",
+        "description": "3D 산점도"
+      },
+      "surface": {
+        "script": "python/visualization/3d/surface.py",
+        "class": "SurfacePlot",
+        "method": "create",
+        "description": "3D 표면 그래프"
+      }
+    },
+    "interactive": {
+      "plotly": {
+        "script": "python/visualization/interactive/plotly_charts.py",
+        "class": "PlotlyCharts",
+        "method": "create",
+        "description": "인터랙티브 Plotly 차트"
+      },
+      "bokeh": {
+        "script": "python/visualization/interactive/bokeh_charts.py",
+        "class": "BokehCharts",
+        "method": "create",
+        "description": "인터랙티브 Bokeh 차트"
+      }
+    }
+  }
+}

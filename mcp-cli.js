@@ -53,6 +53,7 @@ class MCPCLIClient {
       
     } catch (error) {
       console.error(chalk.red('❌ 초기화 실패:'), error.message);
+      console.error(chalk.red('스택 트레이스:'), error.stack);
       await this.cleanup();
       process.exit(1);
     }
@@ -82,48 +83,63 @@ class MCPCLIClient {
       console.log(chalk.yellow('🔧 MCP 서버 시작 중...'));
       
       const serverPath = path.join(__dirname, 'main.js');
+      console.log(chalk.gray(`서버 경로: ${serverPath}`));
       
       // MCP 서버 프로세스 시작
       this.serverProcess = spawn('node', [serverPath], {
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, MCP_MODE: 'server' }
+        env: { ...process.env, NODE_ENV: 'production' }
       });
 
       // 서버 시작 대기
-      let outputData = '';
+      let outputBuffer = '';
+      let hasStarted = false;
       
       const timeout = setTimeout(() => {
-        reject(new Error('MCP 서버 시작 시간 초과'));
+        if (!hasStarted) {
+          reject(new Error('MCP 서버 시작 시간 초과 (30초)'));
+        }
       }, 30000);
 
       this.serverProcess.stdout.on('data', (data) => {
-        outputData += data.toString();
+        const output = data.toString();
+        outputBuffer += output;
+        
+        // 디버깅용 로그
+        console.log(chalk.gray(`서버 출력: ${output.trim()}`));
         
         // 서버 시작 완료 메시지 확인
-        if (outputData.includes('ML MCP 서버가 시작되었습니다')) {
+        if (output.includes('ML MCP 서버가 시작되었습니다') && !hasStarted) {
+          hasStarted = true;
           clearTimeout(timeout);
           console.log(chalk.green('✅ MCP 서버 시작 완료'));
-          resolve();
+          // 서버가 완전히 준비될 때까지 약간 대기
+          setTimeout(resolve, 2000);
         }
       });
 
       this.serverProcess.stderr.on('data', (data) => {
         const errorMsg = data.toString();
-        if (errorMsg.includes('error') || errorMsg.includes('Error')) {
+        console.error(chalk.red(`서버 오류: ${errorMsg.trim()}`));
+        
+        // 치명적인 오류 확인
+        if (errorMsg.includes('Error:') && !hasStarted) {
           clearTimeout(timeout);
-          reject(new Error(`MCP 서버 오류: ${errorMsg}`));
+          reject(new Error(`MCP 서버 시작 실패: ${errorMsg.trim()}`));
         }
       });
 
       this.serverProcess.on('error', (error) => {
-        clearTimeout(timeout);
-        reject(new Error(`MCP 서버 프로세스 오류: ${error.message}`));
+        if (!hasStarted) {
+          clearTimeout(timeout);
+          reject(new Error(`MCP 서버 프로세스 오류: ${error.message}`));
+        }
       });
 
-      this.serverProcess.on('exit', (code) => {
-        if (code !== 0) {
+      this.serverProcess.on('exit', (code, signal) => {
+        if (!hasStarted) {
           clearTimeout(timeout);
-          reject(new Error(`MCP 서버가 예상치 못하게 종료됨 (코드: ${code})`));
+          reject(new Error(`MCP 서버가 예상치 못하게 종료됨 (코드: ${code}, 신호: ${signal})`));
         }
       });
     });
@@ -132,46 +148,38 @@ class MCPCLIClient {
   async connectToServer() {
     console.log(chalk.yellow('🔗 MCP 서버에 연결 중...'));
     
-    // StdioClientTransport 생성
-    this.transport = new StdioClientTransport({
-      stdin: this.serverProcess.stdin,
-      stdout: this.serverProcess.stdout
-    });
+    try {
+      // StdioClientTransport를 올바르게 생성
+      this.transport = new StdioClientTransport({
+        reader: this.serverProcess.stdout,
+        writer: this.serverProcess.stdin
+      });
 
-    // MCP 클라이언트 생성
-    this.client = new Client(
-      {
-        name: 'ml-mcp-cli',
-        version: '1.0.0'
-      },
-      {
-        capabilities: {
-          roots: {
-            listChanged: true
-          }
+      // MCP 클라이언트 생성
+      this.client = new Client(
+        {
+          name: 'ml-mcp-cli',
+          version: '1.0.0'
+        },
+        {
+          capabilities: {}
         }
-      }
-    );
+      );
 
-    // 서버에 연결
-    await this.client.connect(this.transport);
-    this.isConnected = true;
-    
-    console.log(chalk.green('✅ MCP 서버 연결 완료'));
+      // 서버에 연결
+      await this.client.connect(this.transport);
+      this.isConnected = true;
+      
+      console.log(chalk.green('✅ MCP 서버 연결 완료'));
+      
+    } catch (error) {
+      throw new Error(`MCP 서버 연결 실패: ${error.message}`);
+    }
   }
 
   async loadAvailableTools() {
     try {
-      const response = await this.client.request(
-        {
-          method: 'tools/list'
-        },
-        {
-          method: 'tools/list',
-          params: {}
-        }
-      );
-
+      const response = await this.client.listTools();
       this.availableTools = response.tools || [];
       console.log(chalk.cyan(`📋 사용 가능한 도구: ${this.availableTools.length}개`));
       
@@ -280,7 +288,7 @@ class MCPCLIClient {
       console.log(chalk.yellow('\n🔄 처리 중...'));
       
       // 사용자 입력을 분석하여 적절한 도구 선택
-      const toolCall = await this.analyzeUserInput(userInput);
+      const toolCall = this.analyzeUserInput(userInput);
       
       if (!toolCall) {
         console.log(chalk.red('❌ 요청을 이해할 수 없습니다. 다시 시도해주세요.'));
@@ -298,9 +306,9 @@ class MCPCLIClient {
     }
   }
 
-  async analyzeUserInput(userInput) {
+  analyzeUserInput(userInput) {
     try {
-      // 간단한 키워드 기반 분석 (나중에 AI 모델로 대체 가능)
+      // 간단한 키워드 기반 분석
       const input = userInput.toLowerCase();
       
       if (input.includes('분석') || input.includes('analyze')) {
@@ -365,24 +373,12 @@ class MCPCLIClient {
 
   async callMCPTool(toolCall) {
     try {
-      const response = await this.client.request(
-        {
-          method: 'tools/call',
-          params: {
-            name: toolCall.name,
-            arguments: toolCall.arguments
-          }
-        },
-        {
-          method: 'tools/call',
-          params: {
-            name: toolCall.name,
-            arguments: toolCall.arguments
-          }
-        }
-      );
+      const result = await this.client.callTool({
+        name: toolCall.name,
+        arguments: toolCall.arguments
+      });
 
-      return response;
+      return result;
       
     } catch (error) {
       throw new Error(`MCP 도구 호출 실패: ${error.message}`);
@@ -450,7 +446,9 @@ class MCPCLIClient {
         // 강제 종료 대기
         await new Promise((resolve) => {
           const timeout = setTimeout(() => {
-            this.serverProcess.kill('SIGKILL');
+            if (this.serverProcess && !this.serverProcess.killed) {
+              this.serverProcess.kill('SIGKILL');
+            }
             resolve();
           }, 5000);
           

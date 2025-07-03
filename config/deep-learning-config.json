@@ -1,0 +1,137 @@
+
+{
+  "computer_vision": {
+    "image_classification": {
+      "model": "python/ml/deep_learning/computer_vision/image_classification/model.py",
+      "training": "python/ml/deep_learning/computer_vision/image_classification/training.py",
+      "inference": "python/ml/deep_learning/computer_vision/image_classification/inference.py",
+      "evaluation": "python/ml/deep_learning/computer_vision/image_classification/evaluation.py",
+      "description": "이미지 분류 모델 (ResNet, EfficientNet 등)",
+      "supported_architectures": ["resnet", "efficientnet", "vit", "mobilenet"],
+      "default_params": {
+        "epochs": 100,
+        "batch_size": 32,
+        "learning_rate": 0.001,
+        "optimizer": "adam",
+        "loss_function": "cross_entropy"
+      }
+    },
+    "object_detection": {
+      "model": "python/ml/deep_learning/computer_vision/object_detection/yolo_model.py",
+      "training": "python/ml/deep_learning/computer_vision/object_detection/yolo_training.py",
+      "inference": "python/ml/deep_learning/computer_vision/object_detection/yolo_inference.py",
+      "evaluation": "python/ml/deep_learning/computer_vision/object_detection/yolo_evaluation.py",
+      "description": "객체 탐지 모델 (YOLO, R-CNN 등)",
+      "supported_architectures": ["yolov8", "yolov5", "rcnn", "ssd"],
+      "default_params": {
+        "epochs": 300,
+        "batch_size": 16,
+        "learning_rate": 0.01,
+        "optimizer": "sgd",
+        "loss_function": "yolo_loss"
+      }
+    }
+  },
+  "nlp": {
+    "text_classification": {
+      "model": "python/ml/deep_learning/nlp/text_classification/transformer_model.py",
+      "training": "python/ml/deep_learning/nlp/text_classification/transformer_training.py",
+      "inference": "python/ml/deep_learning/nlp/text_classification/transformer_inference.py",
+      "evaluation": "python/ml/deep_learning/nlp/text_classification/transformer_evaluation.py",
+      "description": "텍스트 분류 모델 (BERT, RoBERTa 등)",
+      "supported_architectures": ["bert", "roberta", "electra", "distilbert"],
+      "default_params": {
+        "epochs": 10,
+        "batch_size": 16,
+        "learning_rate": 2e-5,
+        "optimizer": "adamw",
+        "loss_function": "cross_entropy"
+      }
+    },
+    "sentiment_analysis": {
+      "model": "python/ml/deep_learning/nlp/sentiment_analysis/bert_model.py",
+      "training": "python/ml/deep_learning/nlp/sentiment_analysis/bert_training.py",
+      "inference": "python/ml/deep_learning/nlp/sentiment_analysis/bert_inference.py",
+      "evaluation": "python/ml/deep_learning/nlp/sentiment_analysis/bert_evaluation.py",
+      "description": "감정 분석 모델 (BERT 기반)",
+      "supported_architectures": ["bert", "roberta", "electra"],
+      "default_params": {
+        "epochs": 5,
+        "batch_size": 32,
+        "learning_rate": 2e-5,
+        "optimizer": "adamw",
+        "loss_function": "cross_entropy"
+      }
+    }
+  },
+  "training_config": {
+    "optimizers": {
+      "adam": {
+        "script": "python/ml/deep_learning/training/optimizers/adam.py",
+        "default_params": {
+          "learning_rate": 0.001,
+          "beta1": 0.9,
+          "beta2": 0.999,
+          "epsilon": 1e-8
+        }
+      },
+      "adamw": {
+        "script": "python/ml/deep_learning/training/optimizers/adamw.py",
+        "default_params": {
+          "learning_rate": 0.001,
+          "weight_decay": 0.01
+        }
+      },
+      "sgd": {
+        "script": "python/ml/deep_learning/training/optimizers/sgd.py",
+        "default_params": {
+          "learning_rate": 0.01,
+          "momentum": 0.9,
+          "weight_decay": 1e-4
+        }
+      }
+    },
+    "schedulers": {
+      "cosine": {
+        "script": "python/ml/deep_learning/training/schedulers/cosine_scheduler.py",
+        "default_params": {
+          "T_max": 100,
+          "eta_min": 1e-6
+        }
+      },
+      "step": {
+        "script": "python/ml/deep_learning/training/schedulers/step_scheduler.py",
+        "default_params": {
+          "step_size": 30,
+          "gamma": 0.1
+        }
+      },
+      "warmup": {
+        "script": "python/ml/deep_learning/training/schedulers/warmup_scheduler.py",
+        "default_params": {
+          "warmup_epochs": 5,
+          "warmup_factor": 0.1
+        }
+      }
+    },
+    "callbacks": {
+      "early_stopping": {
+        "script": "python/ml/deep_learning/training/callbacks/early_stopping.py",
+        "default_params": {
+          "patience": 10,
+          "min_delta": 0.001,
+          "monitor": "val_loss"
+        }
+      },
+      "model_checkpoint": {
+        "script": "python/ml/deep_learning/training/callbacks/model_checkpoint.py",
+        "default_params": {
+          "monitor": "val_loss",
+          "save_best_only": true,
+          "save_weights_only": false
+        }
+      },
+      "tensorboard": {
+        "script": "python/ml/deep_learning/training/callbacks/tensorboard_logger.py",
+        "default_params": {
+          "log_
