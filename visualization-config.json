@@ -1,0 +1,374 @@
+{
+  "chart_types": {
+    "2d": {
+      "scatter": {
+        "script": "python/visualization/2d/scatter.py",
+        "class": "ScatterPlot",
+        "method": "create",
+        "description": "2D 산점도",
+        "default_params": {
+          "figsize": [10, 8],
+          "alpha": 0.7,
+          "marker_size": 50,
+          "color_palette": "viridis",
+          "grid": true,
+          "legend": true
+        },
+        "supported_params": {
+          "x_column": {
+            "type": "string",
+            "required": true,
+            "description": "X축 컬럼명"
+          },
+          "y_column": {
+            "type": "string",
+            "required": true,
+            "description": "Y축 컬럼명"
+          },
+          "color_by": {
+            "type": "string",
+            "required": false,
+            "description": "색상 구분 컬럼명"
+          },
+          "size_by": {
+            "type": "string",
+            "required": false,
+            "description": "크기 구분 컬럼명"
+          },
+          "title": {
+            "type": "string",
+            "required": false,
+            "description": "차트 제목"
+          },
+          "xlabel": {
+            "type": "string",
+            "required": false,
+            "description": "X축 라벨"
+          },
+          "ylabel": {
+            "type": "string",
+            "required": false,
+            "description": "Y축 라벨"
+          },
+          "alpha": {
+            "type": "float",
+            "range": [0.0, 1.0],
+            "description": "투명도"
+          },
+          "marker_size": {
+            "type": "integer",
+            "range": [1, 500],
+            "description": "마커 크기"
+          }
+        }
+      },
+      "line": {
+        "script": "python/visualization/2d/line.py",
+        "class": "LinePlot",
+        "method": "create",
+        "description": "선 그래프",
+        "default_params": {
+          "figsize": [12, 6],
+          "linewidth": 2,
+          "marker": "o",
+          "color_palette": "tab10",
+          "grid": true,
+          "legend": true
+        },
+        "supported_params": {
+          "x_column": {
+            "type": "string",
+            "required": true,
+            "description": "X축 컬럼명"
+          },
+          "y_columns": {
+            "type": "list",
+            "required": true,
+            "description": "Y축 컬럼명 리스트"
+          },
+          "title": {
+            "type": "string",
+            "required": false,
+            "description": "차트 제목"
+          },
+          "xlabel": {
+            "type": "string",
+            "required": false,
+            "description": "X축 라벨"
+          },
+          "ylabel": {
+            "type": "string",
+            "required": false,
+            "description": "Y축 라벨"
+          },
+          "linewidth": {
+            "type": "float",
+            "range": [0.5, 10.0],
+            "description": "선 굵기"
+          },
+          "marker": {
+            "type": "string",
+            "options": ["o", "s", "^", "v", "<", ">", "d", "p", "*", "+", "x"],
+            "description": "마커 스타일"
+          },
+          "legend": {
+            "type": "boolean",
+            "description": "범례 표시 여부"
+          }
+        }
+      },
+      "bar": {
+        "script": "python/visualization/2d/bar.py",
+        "class": "BarPlot",
+        "method": "create",
+        "description": "막대 그래프",
+        "default_params": {
+          "figsize": [10, 6],
+          "color_palette": "Set2",
+          "alpha": 0.8,
+          "width": 0.8,
+          "grid": true
+        },
+        "supported_params": {
+          "x_column": {
+            "type": "string",
+            "required": true,
+            "description": "X축 컬럼명"
+          },
+          "y_column": {
+            "type": "string",
+            "required": true,
+            "description": "Y축 컬럼명"
+          },
+          "orientation": {
+            "type": "string",
+            "options": ["vertical", "horizontal"],
+            "default": "vertical",
+            "description": "막대 방향"
+          },
+          "stacked": {
+            "type": "boolean",
+            "default": false,
+            "description": "누적 막대 여부"
+          }
+        }
+      },
+      "heatmap": {
+        "script": "python/visualization/2d/heatmap.py",
+        "class": "HeatmapPlot",
+        "method": "create",
+        "description": "히트맵",
+        "default_params": {
+          "figsize": [10, 8],
+          "cmap": "coolwarm",
+          "annot": true,
+          "center": 0,
+          "square": false,
+          "linewidths": 0.5
+        },
+        "supported_params": {
+          "data_type": {
+            "type": "string",
+            "options": ["correlation", "confusion_matrix", "custom"],
+            "default": "correlation",
+            "description": "데이터 타입"
+          },
+          "title": {
+            "type": "string",
+            "required": false,
+            "description": "차트 제목"
+          },
+          "cbar_label": {
+            "type": "string",
+            "required": false,
+            "description": "컬러바 라벨"
+          },
+          "cmap": {
+            "type": "string",
+            "options": ["viridis", "plasma", "coolwarm", "RdYlBu", "seismic"],
+            "description": "컬러맵"
+          },
+          "annot": {
+            "type": "boolean",
+            "description": "값 표시 여부"
+          },
+          "fmt": {
+            "type": "string",
+            "default": ".2f",
+            "description": "값 표시 형식"
+          }
+        }
+      },
+      "histogram": {
+        "script": "python/visualization/2d/histogram.py",
+        "class": "HistogramPlot",
+        "method": "create",
+        "description": "히스토그램",
+        "default_params": {
+          "figsize": [10, 6],
+          "bins": 30,
+          "alpha": 0.7,
+          "color": "skyblue",
+          "edgecolor": "black",
+          "grid": true
+        },
+        "supported_params": {
+          "column": {
+            "type": "string",
+            "required": true,
+            "description": "분석할 컬럼명"
+          },
+          "bins": {
+            "type": "integer",
+            "range": [5, 100],
+            "description": "구간 수"
+          },
+          "density": {
+            "type": "boolean",
+            "default": false,
+            "description": "밀도 표시 여부"
+          },
+          "cumulative": {
+            "type": "boolean",
+            "default": false,
+            "description": "누적 히스토그램 여부"
+          }
+        }
+      },
+      "boxplot": {
+        "script": "python/visualization/2d/boxplot.py",
+        "class": "BoxPlot",
+        "method": "create",
+        "description": "박스 플롯",
+        "default_params": {
+          "figsize": [10, 6],
+          "color_palette": "Set3",
+          "showfliers": true,
+          "notch": false,
+          "patch_artist": true
+        },
+        "supported_params": {
+          "columns": {
+            "type": "list",
+            "required": true,
+            "description": "분석할 컬럼명 리스트"
+          },
+          "group_by": {
+            "type": "string",
+            "required": false,
+            "description": "그룹화 컬럼명"
+          },
+          "title": {
+            "type": "string",
+            "required": false,
+            "description": "차트 제목"
+          },
+          "ylabel": {
+            "type": "string",
+            "required": false,
+            "description": "Y축 라벨"
+          },
+          "showfliers": {
+            "type": "boolean",
+            "description": "이상치 표시 여부"
+          }
+        }
+      }
+    },
+    "3d": {
+      "scatter_3d": {
+        "script": "python/visualization/3d/scatter_3d.py",
+        "class": "Scatter3D",
+        "method": "create",
+        "description": "3D 산점도",
+        "default_params": {
+          "figsize": [12, 10],
+          "alpha": 0.7,
+          "marker_size": 50,
+          "color_palette": "viridis",
+          "grid": true
+        },
+        "supported_params": {
+          "x_column": {
+            "type": "string",
+            "required": true,
+            "description": "X축 컬럼명"
+          },
+          "y_column": {
+            "type": "string",
+            "required": true,
+            "description": "Y축 컬럼명"
+          },
+          "z_column": {
+            "type": "string",
+            "required": true,
+            "description": "Z축 컬럼명"
+          },
+          "color_by": {
+            "type": "string",
+            "required": false,
+            "description": "색상 구분 컬럼명"
+          },
+          "title": {
+            "type": "string",
+            "required": false,
+            "description": "차트 제목"
+          },
+          "xlabel": {
+            "type": "string",
+            "required": false,
+            "description": "X축 라벨"
+          },
+          "ylabel": {
+            "type": "string",
+            "required": false,
+            "description": "Y축 라벨"
+          },
+          "zlabel": {
+            "type": "string",
+            "required": false,
+            "description": "Z축 라벨"
+          }
+        }
+      },
+      "surface": {
+        "script": "python/visualization/3d/surface.py",
+        "class": "SurfacePlot",
+        "method": "create",
+        "description": "3D 표면 그래프",
+        "default_params": {
+          "figsize": [12, 10],
+          "cmap": "viridis",
+          "alpha": 0.8,
+          "wireframe": false,
+          "contours": false
+        },
+        "supported_params": {
+          "x_range": {
+            "type": "list",
+            "required": false,
+            "description": "X축 범위 [min, max]"
+          },
+          "y_range": {
+            "type": "list",
+            "required": false,
+            "description": "Y축 범위 [min, max]"
+          },
+          "function": {
+            "type": "string",
+            "required": false,
+            "description": "수식 함수"
+          },
+          "grid_resolution": {
+            "type": "integer",
+            "default": 50,
+            "description": "그리드 해상도"
+          }
+        }
+      }
+    },
+    "interactive": {
+      "plotly": {
+        "script": "python/visualization/interactive/plotly_charts.py",
+        "class": "PlotlyCharts",
+        "method":

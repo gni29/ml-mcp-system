@@ -1,4 +1,3 @@
-
 {
   "computer_vision": {
     "image_classification": {
@@ -13,7 +12,29 @@
         "batch_size": 32,
         "learning_rate": 0.001,
         "optimizer": "adam",
-        "loss_function": "cross_entropy"
+        "loss_function": "cross_entropy",
+        "input_size": [224, 224, 3],
+        "num_classes": 10,
+        "data_augmentation": true,
+        "early_stopping": true,
+        "checkpoint_frequency": 10
+      },
+      "pretrained_models": {
+        "resnet50": {
+          "weights": "imagenet",
+          "input_shape": [224, 224, 3],
+          "classes": 1000
+        },
+        "efficientnet_b0": {
+          "weights": "imagenet",
+          "input_shape": [224, 224, 3],
+          "classes": 1000
+        },
+        "vit_base": {
+          "weights": "imagenet21k",
+          "input_shape": [224, 224, 3],
+          "classes": 21843
+        }
       }
     },
     "object_detection": {
@@ -28,7 +49,46 @@
         "batch_size": 16,
         "learning_rate": 0.01,
         "optimizer": "sgd",
-        "loss_function": "yolo_loss"
+        "loss_function": "yolo_loss",
+        "input_size": [640, 640, 3],
+        "confidence_threshold": 0.5,
+        "iou_threshold": 0.4,
+        "max_detections": 100
+      },
+      "pretrained_models": {
+        "yolov8n": {
+          "weights": "coco",
+          "input_shape": [640, 640, 3],
+          "classes": 80
+        },
+        "yolov8s": {
+          "weights": "coco",
+          "input_shape": [640, 640, 3],
+          "classes": 80
+        },
+        "yolov8m": {
+          "weights": "coco",
+          "input_shape": [640, 640, 3],
+          "classes": 80
+        }
+      }
+    },
+    "semantic_segmentation": {
+      "model": "python/ml/deep_learning/computer_vision/segmentation/unet_model.py",
+      "training": "python/ml/deep_learning/computer_vision/segmentation/unet_training.py",
+      "inference": "python/ml/deep_learning/computer_vision/segmentation/unet_inference.py",
+      "evaluation": "python/ml/deep_learning/computer_vision/segmentation/unet_evaluation.py",
+      "description": "의미적 분할 모델 (U-Net, DeepLab 등)",
+      "supported_architectures": ["unet", "deeplabv3", "fcn", "pspnet"],
+      "default_params": {
+        "epochs": 150,
+        "batch_size": 8,
+        "learning_rate": 0.0001,
+        "optimizer": "adam",
+        "loss_function": "dice_loss",
+        "input_size": [512, 512, 3],
+        "num_classes": 21,
+        "dice_coefficient": true
       }
     }
   },
@@ -45,7 +105,28 @@
         "batch_size": 16,
         "learning_rate": 2e-5,
         "optimizer": "adamw",
-        "loss_function": "cross_entropy"
+        "loss_function": "cross_entropy",
+        "max_length": 512,
+        "num_labels": 2,
+        "warmup_steps": 500,
+        "weight_decay": 0.01
+      },
+      "pretrained_models": {
+        "bert-base-uncased": {
+          "model_name": "bert-base-uncased",
+          "max_length": 512,
+          "vocab_size": 30522
+        },
+        "roberta-base": {
+          "model_name": "roberta-base",
+          "max_length": 512,
+          "vocab_size": 50265
+        },
+        "distilbert-base-uncased": {
+          "model_name": "distilbert-base-uncased",
+          "max_length": 512,
+          "vocab_size": 30522
+        }
       }
     },
     "sentiment_analysis": {
@@ -60,7 +141,88 @@
         "batch_size": 32,
         "learning_rate": 2e-5,
         "optimizer": "adamw",
-        "loss_function": "cross_entropy"
+        "loss_function": "cross_entropy",
+        "max_length": 256,
+        "num_labels": 3,
+        "dropout": 0.1
+      }
+    },
+    "named_entity_recognition": {
+      "model": "python/ml/deep_learning/nlp/ner/bert_ner_model.py",
+      "training": "python/ml/deep_learning/nlp/ner/bert_ner_training.py",
+      "inference": "python/ml/deep_learning/nlp/ner/bert_ner_inference.py",
+      "evaluation": "python/ml/deep_learning/nlp/ner/bert_ner_evaluation.py",
+      "description": "개체명 인식 모델",
+      "supported_architectures": ["bert", "roberta", "electra"],
+      "default_params": {
+        "epochs": 8,
+        "batch_size": 16,
+        "learning_rate": 3e-5,
+        "optimizer": "adamw",
+        "loss_function": "token_classification_loss",
+        "max_length": 128,
+        "num_labels": 9,
+        "label_all_tokens": true
+      }
+    },
+    "question_answering": {
+      "model": "python/ml/deep_learning/nlp/qa/bert_qa_model.py",
+      "training": "python/ml/deep_learning/nlp/qa/bert_qa_training.py",
+      "inference": "python/ml/deep_learning/nlp/qa/bert_qa_inference.py",
+      "evaluation": "python/ml/deep_learning/nlp/qa/bert_qa_evaluation.py",
+      "description": "질의응답 모델",
+      "supported_architectures": ["bert", "roberta", "electra"],
+      "default_params": {
+        "epochs": 3,
+        "batch_size": 12,
+        "learning_rate": 3e-5,
+        "optimizer": "adamw",
+        "loss_function": "qa_loss",
+        "max_length": 384,
+        "doc_stride": 128,
+        "max_query_length": 64,
+        "max_answer_length": 30
+      }
+    }
+  },
+  "time_series": {
+    "forecasting": {
+      "model": "python/ml/deep_learning/time_series/lstm_forecasting_model.py",
+      "training": "python/ml/deep_learning/time_series/lstm_forecasting_training.py",
+      "inference": "python/ml/deep_learning/time_series/lstm_forecasting_inference.py",
+      "evaluation": "python/ml/deep_learning/time_series/lstm_forecasting_evaluation.py",
+      "description": "시계열 예측 모델 (LSTM, GRU, Transformer)",
+      "supported_architectures": ["lstm", "gru", "transformer", "tcn"],
+      "default_params": {
+        "epochs": 100,
+        "batch_size": 32,
+        "learning_rate": 0.001,
+        "optimizer": "adam",
+        "loss_function": "mse",
+        "sequence_length": 60,
+        "forecast_horizon": 1,
+        "hidden_size": 50,
+        "num_layers": 2,
+        "dropout": 0.2
+      }
+    },
+    "anomaly_detection": {
+      "model": "python/ml/deep_learning/time_series/autoencoder_anomaly_model.py",
+      "training": "python/ml/deep_learning/time_series/autoencoder_anomaly_training.py",
+      "inference": "python/ml/deep_learning/time_series/autoencoder_anomaly_inference.py",
+      "evaluation": "python/ml/deep_learning/time_series/autoencoder_anomaly_evaluation.py",
+      "description": "시계열 이상 탐지 모델 (Autoencoder, VAE)",
+      "supported_architectures": ["autoencoder", "vae", "lstm_autoencoder"],
+      "default_params": {
+        "epochs": 50,
+        "batch_size": 64,
+        "learning_rate": 0.001,
+        "optimizer": "adam",
+        "loss_function": "reconstruction_loss",
+        "sequence_length": 100,
+        "encoding_dim": 32,
+        "threshold_percentile": 95,
+        "reconstruction_error_metric": "mse"
       }
     }
   },
@@ -72,14 +234,20 @@
           "learning_rate": 0.001,
           "beta1": 0.9,
           "beta2": 0.999,
-          "epsilon": 1e-8
+          "epsilon": 1e-8,
+          "weight_decay": 0,
+          "amsgrad": false
         }
       },
       "adamw": {
         "script": "python/ml/deep_learning/training/optimizers/adamw.py",
         "default_params": {
           "learning_rate": 0.001,
-          "weight_decay": 0.01
+          "beta1": 0.9,
+          "beta2": 0.999,
+          "epsilon": 1e-8,
+          "weight_decay": 0.01,
+          "amsgrad": false
         }
       },
       "sgd": {
@@ -87,7 +255,19 @@
         "default_params": {
           "learning_rate": 0.01,
           "momentum": 0.9,
-          "weight_decay": 1e-4
+          "weight_decay": 1e-4,
+          "nesterov": false
+        }
+      },
+      "rmsprop": {
+        "script": "python/ml/deep_learning/training/optimizers/rmsprop.py",
+        "default_params": {
+          "learning_rate": 0.001,
+          "alpha": 0.99,
+          "eps": 1e-8,
+          "weight_decay": 0,
+          "momentum": 0,
+          "centered": false
         }
       }
     },
@@ -96,21 +276,44 @@
         "script": "python/ml/deep_learning/training/schedulers/cosine_scheduler.py",
         "default_params": {
           "T_max": 100,
-          "eta_min": 1e-6
+          "eta_min": 1e-6,
+          "last_epoch": -1
         }
       },
       "step": {
         "script": "python/ml/deep_learning/training/schedulers/step_scheduler.py",
         "default_params": {
           "step_size": 30,
-          "gamma": 0.1
+          "gamma": 0.1,
+          "last_epoch": -1
+        }
+      },
+      "exponential": {
+        "script": "python/ml/deep_learning/training/schedulers/exponential_scheduler.py",
+        "default_params": {
+          "gamma": 0.95,
+          "last_epoch": -1
+        }
+      },
+      "reduce_on_plateau": {
+        "script": "python/ml/deep_learning/training/schedulers/plateau_scheduler.py",
+        "default_params": {
+          "mode": "min",
+          "factor": 0.1,
+          "patience": 10,
+          "threshold": 1e-4,
+          "threshold_mode": "rel",
+          "cooldown": 0,
+          "min_lr": 0,
+          "eps": 1e-8
         }
       },
       "warmup": {
         "script": "python/ml/deep_learning/training/schedulers/warmup_scheduler.py",
         "default_params": {
           "warmup_epochs": 5,
-          "warmup_factor": 0.1
+          "warmup_factor": 0.1,
+          "warmup_method": "linear"
         }
       }
     },
@@ -118,9 +321,12 @@
       "early_stopping": {
         "script": "python/ml/deep_learning/training/callbacks/early_stopping.py",
         "default_params": {
+          "monitor": "val_loss",
           "patience": 10,
           "min_delta": 0.001,
-          "monitor": "val_loss"
+          "mode": "min",
+          "restore_best_weights": true,
+          "verbose": 1
         }
       },
       "model_checkpoint": {
@@ -128,10 +334,442 @@
         "default_params": {
           "monitor": "val_loss",
           "save_best_only": true,
-          "save_weights_only": false
+          "save_weights_only": false,
+          "mode": "min",
+          "save_freq": "epoch",
+          "verbose": 1
+        }
+      },
+      "reduce_lr": {
+        "script": "python/ml/deep_learning/training/callbacks/reduce_lr.py",
+        "default_params": {
+          "monitor": "val_loss",
+          "factor": 0.2,
+          "patience": 5,
+          "min_lr": 1e-7,
+          "mode": "min",
+          "verbose": 1
         }
       },
       "tensorboard": {
         "script": "python/ml/deep_learning/training/callbacks/tensorboard_logger.py",
         "default_params": {
-          "log_
+          "log_dir": "./logs",
+          "histogram_freq": 1,
+          "write_graph": true,
+          "write_images": false,
+          "update_freq": "epoch",
+          "profile_batch": 2,
+          "embeddings_freq": 0
+        }
+      },
+      "csv_logger": {
+        "script": "python/ml/deep_learning/training/callbacks/csv_logger.py",
+        "default_params": {
+          "filename": "training.log",
+          "separator": ",",
+          "append": false
+        }
+      },
+      "progress_bar": {
+        "script": "python/ml/deep_learning/training/callbacks/progress_bar.py",
+        "default_params": {
+          "update_freq": 1,
+          "show_metrics": true,
+          "show_eta": true
+        }
+      }
+    },
+    "regularization": {
+      "dropout": {
+        "default_rate": 0.1,
+        "adaptive": true,
+        "schedule": "constant"
+      },
+      "batch_normalization": {
+        "momentum": 0.99,
+        "epsilon": 1e-3,
+        "center": true,
+        "scale": true
+      },
+      "layer_normalization": {
+        "epsilon": 1e-6,
+        "center": true,
+        "scale": true
+      },
+      "weight_decay": {
+        "l1": 0.0,
+        "l2": 1e-4
+      }
+    },
+    "data_augmentation": {
+      "image": {
+        "horizontal_flip": {
+          "probability": 0.5
+        },
+        "vertical_flip": {
+          "probability": 0.1
+        },
+        "rotation": {
+          "degrees": 15,
+          "probability": 0.3
+        },
+        "zoom": {
+          "range": 0.1,
+          "probability": 0.2
+        },
+        "brightness": {
+          "range": 0.2,
+          "probability": 0.3
+        },
+        "contrast": {
+          "range": 0.2,
+          "probability": 0.3
+        },
+        "gaussian_noise": {
+          "std": 0.01,
+          "probability": 0.2
+        },
+        "cutout": {
+          "size": 16,
+          "probability": 0.2
+        }
+      },
+      "text": {
+        "synonym_replacement": {
+          "probability": 0.1,
+          "num_words": 1
+        },
+        "random_insertion": {
+          "probability": 0.1,
+          "num_words": 1
+        },
+        "random_swap": {
+          "probability": 0.1,
+          "num_swaps": 1
+        },
+        "random_deletion": {
+          "probability": 0.1
+        },
+        "back_translation": {
+          "probability": 0.05,
+          "languages": ["de", "fr", "es"]
+        }
+      },
+      "time_series": {
+        "jitter": {
+          "sigma": 0.03,
+          "probability": 0.3
+        },
+        "scaling": {
+          "sigma": 0.1,
+          "probability": 0.3
+        },
+        "magnitude_warp": {
+          "sigma": 0.2,
+          "knot": 4,
+          "probability": 0.2
+        },
+        "time_warp": {
+          "sigma": 0.2,
+          "knot": 4,
+          "probability": 0.2
+        },
+        "window_slice": {
+          "reduce_ratio": 0.9,
+          "probability": 0.2
+        }
+      }
+    }
+  },
+  "hardware_optimization": {
+    "gpu": {
+      "memory_growth": true,
+      "allow_memory_growth": true,
+      "memory_limit": null,
+      "multi_gpu": {
+        "strategy": "mirrored",
+        "cross_device_ops": "nccl",
+        "auto_shard_policy": "auto"
+      }
+    },
+    "cpu": {
+      "inter_op_parallelism_threads": 0,
+      "intra_op_parallelism_threads": 0,
+      "allow_soft_placement": true,
+      "log_device_placement": false
+    },
+    "mixed_precision": {
+      "enabled": false,
+      "loss_scale": "dynamic",
+      "initial_loss_scale": 32768.0,
+      "growth_steps": 2000,
+      "growth_factor": 2.0
+    }
+  },
+  "model_serving": {
+    "formats": {
+      "tensorflow": {
+        "saved_model": {
+          "directory": "saved_models",
+          "signature": "serving_default"
+        },
+        "tflite": {
+          "quantization": "dynamic",
+          "optimization": "default"
+        }
+      },
+      "pytorch": {
+        "torchscript": {
+          "method": "trace",
+          "example_inputs": true
+        },
+        "onnx": {
+          "opset_version": 11,
+          "dynamic_axes": true
+        }
+      },
+      "huggingface": {
+        "model_hub": true,
+        "tokenizer": true,
+        "config": true
+      }
+    },
+    "deployment": {
+      "local": {
+        "port": 8000,
+        "workers": 1,
+        "timeout": 30
+      },
+      "docker": {
+        "base_image": "tensorflow/serving",
+        "model_name": "model",
+        "model_version": 1
+      },
+      "cloud": {
+        "platform": "gcp",
+        "machine_type": "n1-standard-4",
+        "accelerator": "nvidia-tesla-t4"
+      }
+    }
+  },
+  "evaluation_metrics": {
+    "classification": {
+      "accuracy": true,
+      "precision": true,
+      "recall": true,
+      "f1_score": true,
+      "auc_roc": true,
+      "confusion_matrix": true,
+      "classification_report": true,
+      "top_k_accuracy": {
+        "k": [1, 3, 5]
+      }
+    },
+    "regression": {
+      "mse": true,
+      "rmse": true,
+      "mae": true,
+      "r2_score": true,
+      "mape": true,
+      "explained_variance": true
+    },
+    "object_detection": {
+      "map": true,
+      "map_50": true,
+      "map_75": true,
+      "precision": true,
+      "recall": true,
+      "iou_thresholds": [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+    },
+    "segmentation": {
+      "pixel_accuracy": true,
+      "mean_iou": true,
+      "frequency_weighted_iou": true,
+      "dice_coefficient": true,
+      "jaccard_index": true
+    },
+    "nlp": {
+      "bleu": true,
+      "rouge": {
+        "rouge_1": true,
+        "rouge_2": true,
+        "rouge_l": true
+      },
+      "meteor": true,
+      "perplexity": true,
+      "exact_match": true,
+      "f1_score": true
+    },
+    "time_series": {
+      "mse": true,
+      "rmse": true,
+      "mae": true,
+      "mape": true,
+      "smape": true,
+      "mase": true,
+      "directional_accuracy": true
+    }
+  },
+  "data_preprocessing": {
+    "image": {
+      "resize": {
+        "method": "bilinear",
+        "preserve_aspect_ratio": false
+      },
+      "normalization": {
+        "mean": [0.485, 0.456, 0.406],
+        "std": [0.229, 0.224, 0.225]
+      },
+      "color_space": "rgb",
+      "data_format": "channels_last"
+    },
+    "text": {
+      "tokenization": {
+        "method": "wordpiece",
+        "vocab_size": 30000,
+        "max_length": 512,
+        "padding": "max_length",
+        "truncation": true
+      },
+      "preprocessing": {
+        "lowercase": true,
+        "remove_punctuation": false,
+        "remove_stopwords": false,
+        "lemmatization": false,
+        "stemming": false
+      }
+    },
+    "time_series": {
+      "normalization": {
+        "method": "min_max",
+        "feature_range": [0, 1]
+      },
+      "scaling": {
+        "method": "standard",
+        "with_mean": true,
+        "with_std": true
+      },
+      "windowing": {
+        "window_size": 60,
+        "step": 1,
+        "forecast_horizon": 1
+      },
+      "missing_values": {
+        "method": "interpolation",
+        "strategy": "linear"
+      }
+    }
+  },
+  "model_versioning": {
+    "enabled": true,
+    "storage": {
+      "local": {
+        "base_path": "./models",
+        "format": "timestamp"
+      },
+      "remote": {
+        "enabled": false,
+        "provider": "s3",
+        "bucket": "ml-models",
+        "prefix": "experiments"
+      }
+    },
+    "metadata": {
+      "track_hyperparameters": true,
+      "track_metrics": true,
+      "track_artifacts": true,
+      "track_code_version": true
+    },
+    "comparison": {
+      "enabled": true,
+      "metrics": ["accuracy", "loss", "f1_score"],
+      "charts": true
+    }
+  },
+  "experiment_tracking": {
+    "enabled": true,
+    "backend": "tensorboard",
+    "log_frequency": {
+      "scalar_metrics": "epoch",
+      "histograms": 10,
+      "images": 50
+    },
+    "auto_log": {
+      "model_summary": true,
+      "hyperparameters": true,
+      "gradients": false,
+      "weights": false
+    }
+  },
+  "debugging": {
+    "profiling": {
+      "enabled": false,
+      "profile_memory": true,
+      "profile_compute": true,
+      "output_dir": "./profiling"
+    },
+    "checkpoints": {
+      "gradient_clipping": {
+        "enabled": true,
+        "max_norm": 1.0,
+        "norm_type": 2
+      },
+      "nan_detection": {
+        "enabled": true,
+        "action": "raise"
+      }
+    },
+    "logging": {
+      "level": "INFO",
+      "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+      "file": "training.log"
+    }
+  },
+  "dependencies": {
+    "core": {
+      "python": ">=3.8",
+      "tensorflow": ">=2.8.0",
+      "torch": ">=1.11.0",
+      "torchvision": ">=0.12.0",
+      "transformers": ">=4.15.0",
+      "datasets": ">=1.18.0"
+    },
+    "optional": {
+      "opencv-python": ">=4.5.0",
+      "pillow": ">=8.0.0",
+      "nltk": ">=3.6.0",
+      "spacy": ">=3.2.0",
+      "tensorboard": ">=2.8.0",
+      "wandb": ">=0.12.0",
+      "mlflow": ">=1.20.0"
+    },
+    "hardware_specific": {
+      "cuda": {
+        "tensorflow-gpu": ">=2.8.0",
+        "torch": ">=1.11.0+cu113"
+      },
+      "apple_silicon": {
+        "tensorflow-macos": ">=2.8.0",
+        "tensorflow-metal": ">=0.3.0"
+      }
+    }
+  },
+  "security": {
+    "model_validation": {
+      "input_validation": true,
+      "output_sanitization": true,
+      "model_integrity_check": true
+    },
+    "data_privacy": {
+      "local_processing": true,
+      "no_external_calls": true,
+      "temporary_file_cleanup": true
+    },
+    "resource_limits": {
+      "max_model_size_gb": 10,
+      "max_training_time_hours": 24,
+      "max_memory_usage_gb": 32
+    }
+  }
+}

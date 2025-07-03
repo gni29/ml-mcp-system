@@ -926,3 +926,12 @@ export class WorkflowBuilder {
         provides: ['scatter_plot', 'plot_insights']
       },
       '
+        memory_mb: 200,
+           cpu_cores: 1,
+           gpu_required: false,
+           disk_space_mb: 20,
+           network_required: false
+         }
+       };
+     }
+   }

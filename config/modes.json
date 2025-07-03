@@ -1,0 +1,352 @@
+{
+  "general": {
+    "name": "일반 모드",
+    "description": "기본적인 대화 및 간단한 작업 처리",
+    "active_model": "router",
+    "tools": [
+      "general_query",
+      "mode_switch",
+      "system_status",
+      "file_manager"
+    ],
+    "features": {
+      "natural_language_processing": true,
+      "basic_calculations": true,
+      "file_operations": true,
+      "system_monitoring": true,
+      "conversation": true
+    },
+    "limitations": {
+      "ml_operations": false,
+      "complex_analysis": false,
+      "model_training": false,
+      "deep_learning": false
+    },
+    "resource_usage": {
+      "memory_limit_mb": 2000,
+      "cpu_priority": "low",
+      "gpu_required": false
+    },
+    "auto_switch_triggers": [
+      "machine learning",
+      "데이터 분석",
+      "모델 훈련",
+      "시각화",
+      "clustering",
+      "regression",
+      "classification"
+    ]
+  },
+  "ml": {
+    "name": "머신러닝 모드",
+    "description": "데이터 분석, ML 모델 훈련 및 시각화 전문 모드",
+    "active_model": "processor",
+    "fallback_model": "router",
+    "tools": [
+      "analyze_data",
+      "train_model",
+      "visualize_data",
+      "python_executor",
+      "data_loader",
+      "model_trainer",
+      "result_formatter",
+      "pipeline_executor"
+    ],
+    "features": {
+      "data_analysis": true,
+      "statistical_analysis": true,
+      "machine_learning": true,
+      "deep_learning": true,
+      "data_visualization": true,
+      "feature_engineering": true,
+      "model_evaluation": true,
+      "time_series_analysis": true,
+      "clustering": true,
+      "dimensionality_reduction": true,
+      "ensemble_methods": true,
+      "hyperparameter_tuning": true,
+      "cross_validation": true,
+      "pipeline_automation": true
+    },
+    "supported_algorithms": {
+      "supervised": [
+        "linear_regression",
+        "logistic_regression",
+        "random_forest",
+        "xgboost",
+        "svm",
+        "neural_networks"
+      ],
+      "unsupervised": [
+        "kmeans",
+        "dbscan",
+        "hierarchical_clustering",
+        "pca",
+        "tsne",
+        "umap"
+      ],
+      "deep_learning": [
+        "cnn",
+        "rnn",
+        "lstm",
+        "transformer",
+        "autoencoder",
+        "gan"
+      ]
+    },
+    "supported_file_types": [
+      "csv",
+      "xlsx",
+      "json",
+      "parquet",
+      "hdf5",
+      "pickle",
+      "txt"
+    ],
+    "visualization_types": [
+      "scatter",
+      "line",
+      "bar",
+      "histogram",
+      "boxplot",
+      "heatmap",
+      "3d_scatter",
+      "surface",
+      "interactive_plotly",
+      "interactive_bokeh"
+    ],
+    "resource_usage": {
+      "memory_limit_mb": 16000,
+      "cpu_priority": "high",
+      "gpu_required": false,
+      "gpu_preferred": true,
+      "parallel_processing": true
+    },
+    "auto_unload_timeout": 600000,
+    "performance_monitoring": true
+  },
+  "coding": {
+    "name": "코딩 모드",
+    "description": "코드 생성, 리뷰 및 디버깅 전문 모드",
+    "active_model": "processor",
+    "tools": [
+      "code_generator",
+      "code_reviewer",
+      "debugger",
+      "python_executor",
+      "documentation_generator",
+      "test_generator"
+    ],
+    "features": {
+      "code_generation": true,
+      "code_review": true,
+      "debugging": true,
+      "testing": true,
+      "documentation": true,
+      "refactoring": true,
+      "performance_optimization": true,
+      "security_analysis": true
+    },
+    "supported_languages": [
+      "python",
+      "javascript",
+      "typescript",
+      "java",
+      "cpp",
+      "sql",
+      "html",
+      "css",
+      "bash"
+    ],
+    "frameworks": [
+      "pandas",
+      "numpy",
+      "scikit-learn",
+      "tensorflow",
+      "pytorch",
+      "flask",
+      "fastapi",
+      "react",
+      "vue"
+    ],
+    "resource_usage": {
+      "memory_limit_mb": 8000,
+      "cpu_priority": "medium",
+      "gpu_required": false
+    }
+  },
+  "deep_learning": {
+    "name": "딥러닝 모드",
+    "description": "딥러닝 모델 개발 및 훈련 전문 모드",
+    "active_model": "processor",
+    "tools": [
+      "dl_model_builder",
+      "dl_trainer",
+      "dl_evaluator",
+      "gpu_monitor",
+      "tensorboard_integration"
+    ],
+    "features": {
+      "model_architecture_design": true,
+      "transfer_learning": true,
+      "hyperparameter_optimization": true,
+      "distributed_training": true,
+      "model_deployment": true,
+      "performance_monitoring": true
+    },
+    "supported_domains": {
+      "computer_vision": [
+        "image_classification",
+        "object_detection",
+        "semantic_segmentation",
+        "face_recognition",
+        "style_transfer"
+      ],
+      "nlp": [
+        "text_classification",
+        "sentiment_analysis",
+        "named_entity_recognition",
+        "machine_translation",
+        "question_answering"
+      ],
+      "time_series": [
+        "forecasting",
+        "anomaly_detection",
+        "pattern_recognition"
+      ]
+    },
+    "frameworks": [
+      "tensorflow",
+      "pytorch",
+      "keras",
+      "huggingface",
+      "opencv",
+      "spacy"
+    ],
+    "resource_usage": {
+      "memory_limit_mb": 32000,
+      "cpu_priority": "high",
+      "gpu_required": true,
+      "gpu_memory_mb": 8000,
+      "parallel_processing": true,
+      "distributed_training": true
+    },
+    "training_config": {
+      "max_epochs": 1000,
+      "early_stopping": true,
+      "checkpoint_saving": true,
+      "tensorboard_logging": true,
+      "model_versioning": true
+    }
+  },
+  "mode_switching": {
+    "auto_switch": {
+      "enabled": true,
+      "confidence_threshold": 0.8,
+      "keywords": {
+        "ml": [
+          "분석", "analyze", "데이터", "data", "모델", "model",
+          "훈련", "training", "예측", "predict", "분류", "classification",
+          "회귀", "regression", "클러스터", "cluster", "시각화", "visualization"
+        ],
+        "coding": [
+          "코드", "code", "함수", "function", "클래스", "class",
+          "버그", "bug", "디버그", "debug", "테스트", "test",
+          "리팩토링", "refactor", "최적화", "optimize"
+        ],
+        "deep_learning": [
+          "딥러닝", "deep learning", "신경망", "neural network",
+          "cnn", "rnn", "lstm", "transformer", "pytorch", "tensorflow"
+        ]
+      }
+    },
+    "manual_switch": {
+      "confirmation_required": false,
+      "preserve_context": true,
+      "transition_time_ms": 2000
+    },
+    "fallback": {
+      "enabled": true,
+      "fallback_mode": "general",
+      "conditions": [
+        "resource_exhaustion",
+        "model_failure",
+        "timeout"
+      ]
+    }
+  },
+  "resource_management": {
+    "memory_monitoring": {
+      "enabled": true,
+      "warning_threshold_percent": 80,
+      "critical_threshold_percent": 95,
+      "auto_cleanup": true
+    },
+    "model_lifecycle": {
+      "preload_models": ["router"],
+      "lazy_load_models": ["processor"],
+      "auto_unload": {
+        "enabled": true,
+        "idle_timeout_ms": 600000,
+        "memory_pressure_threshold": 0.8
+      }
+    },
+    "performance_optimization": {
+      "cache_enabled": true,
+      "parallel_processing": true,
+      "batch_processing": true,
+      "result_streaming": true
+    }
+  },
+  "security": {
+    "sandboxing": {
+      "python_execution": true,
+      "file_access_restrictions": true,
+      "network_access_control": true
+    },
+    "data_privacy": {
+      "local_processing_only": true,
+      "no_external_apis": true,
+      "automatic_data_cleanup": true,
+      "session_isolation": true
+    },
+    "input_validation": {
+      "enabled": true,
+      "sanitize_code": true,
+      "validate_file_paths": true,
+      "prevent_command_injection": true
+    }
+  },
+  "logging": {
+    "level": "info",
+    "file_logging": true,
+    "console_logging": true,
+    "performance_logging": true,
+    "error_tracking": true,
+    "log_rotation": {
+      "enabled": true,
+      "max_size_mb": 100,
+      "backup_count": 5
+    }
+  },
+  "ui_preferences": {
+    "default_theme": "dark",
+    "language": "ko",
+    "response_format": "comprehensive",
+    "show_progress": true,
+    "auto_save_results": true,
+    "result_preview": true
+  },
+  "experimental": {
+    "features": {
+      "voice_interface": false,
+      "real_time_collaboration": false,
+      "advanced_model_routing": true,
+      "automated_workflow_generation": true
+    },
+    "beta_models": {
+      "enabled": false,
+      "allowed_models": []
+    }
+  }
+}
