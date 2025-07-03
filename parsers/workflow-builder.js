@@ -1,18 +1,188 @@
-'visualization.3d.scatter_3d': {
-        requires: ['pca_components', 'transformed_data'],
-        provides: ['3d_plot', 'dimensional_insights']
+// parsers/workflow-builder.js
+import { Logger } from '../utils/logger.js';
+import fs from 'fs/promises';
+
+export class WorkflowBuilder {
+  constructor() {
+    this.logger = new Logger();
+    this.workflowTemplates = null;
+    this.stepDependencies = this.initializeStepDependencies();
+    this.stepCompatibility = this.initializeStepCompatibility();
+  }
+
+  async initialize() {
+    try {
+      await this.loadWorkflowTemplates();
+      this.logger.info('WorkflowBuilder 초기화 완료');
+    } catch (error) {
+      this.logger.error('WorkflowBuilder 초기화 실패:', error);
+      throw error;
+    }
+  }
+
+  async loadWorkflowTemplates() {
+    try {
+      const templatesData = await fs.readFile('./config/pipeline-templates.json', 'utf-8');
+      this.workflowTemplates = JSON.parse(templatesData);
+    } catch (error) {
+      this.logger.warn('워크플로우 템플릿 로드 실패:', error);
+      this.workflowTemplates = { common_workflows: {}, ml_workflows: {} };
+    }
+  }
+
+  initializeStepDependencies() {
+    return {
+      'basic.descriptive_stats': {
+        requires: ['data_loading'],
+        provides: ['statistics', 'summary_stats', 'data_overview']
+      },
+      'basic.correlation': {
+        requires: ['basic.descriptive_stats'],
+        provides: ['correlation_matrix', 'correlation_results']
+      },
+      'basic.distribution': {
+        requires: ['data_loading'],
+        provides: ['distribution_stats', 'normality_tests']
+      },
+      'advanced.feature_engineering': {
+        requires: ['basic.correlation'],
+        provides: ['engineered_features', 'feature_importance']
+      },
+      'advanced.pca': {
+        requires: ['basic.descriptive_stats'],
+        provides: ['pca_components', 'explained_variance', 'transformed_data']
+      },
+      'advanced.clustering': {
+        requires: ['data_preprocessing'],
+        provides: ['cluster_labels', 'cluster_centers', 'cluster_metrics']
+      },
+      'advanced.outlier_detection': {
+        requires: ['basic.descriptive_stats'],
+        provides: ['outlier_indices', 'clean_data', 'outlier_scores']
+      },
+      'ml_traditional.supervised.regression.linear': {
+        requires: ['data_preprocessing'],
+        provides: ['trained_model', 'predictions', 'regression_metrics']
+      },
+      'ml_traditional.supervised.regression.random_forest': {
+        requires: ['data_preprocessing'],
+        provides: ['trained_model', 'predictions', 'feature_importance', 'regression_metrics']
+      },
+      'ml_traditional.supervised.regression.xgboost': {
+        requires: ['data_preprocessing'],
+        provides: ['trained_model', 'predictions', 'feature_importance', 'regression_metrics']
+      },
+      'ml_traditional.supervised.classification.logistic': {
+        requires: ['data_preprocessing'],
+        provides: ['trained_model', 'predictions', 'classification_metrics']
+      },
+      'ml_traditional.supervised.classification.random_forest': {
+        requires: ['data_preprocessing'],
+        provides: ['trained_model', 'predictions', 'feature_importance', 'classification_metrics']
+      },
+      'ml_traditional.supervised.classification.xgboost': {
+        requires: ['data_preprocessing'],
+        provides: ['trained_model', 'predictions', 'feature_importance', 'classification_metrics']
+      },
+      'ml_traditional.supervised.ensemble.voting': {
+        requires: ['data_preprocessing'],
+        provides: ['ensemble_model', 'ensemble_predictions', 'individual_scores']
+      },
+      'ml_traditional.supervised.ensemble.stacking': {
+        requires: ['data_preprocessing'],
+        provides: ['stacked_model', 'stacked_predictions', 'base_predictions']
+      },
+      'ml_traditional.unsupervised.clustering.kmeans': {
+        requires: ['data_preprocessing'],
+        provides: ['cluster_labels', 'cluster_centers', 'inertia']
+      },
+      'ml_traditional.unsupervised.clustering.dbscan': {
+        requires: ['data_preprocessing'],
+        provides: ['cluster_labels', 'core_samples', 'noise_points']
+      },
+      'ml_traditional.unsupervised.clustering.hierarchical': {
+        requires: ['data_preprocessing'],
+        provides: ['cluster_labels', 'dendrogram', 'linkage_matrix']
+      },
+      'ml_traditional.unsupervised.dimensionality_reduction.pca': {
+        requires: ['data_preprocessing'],
+        provides: ['pca_components', 'explained_variance', 'transformed_data']
+      },
+      'ml_traditional.unsupervised.dimensionality_reduction.tsne': {
+        requires: ['data_preprocessing'],
+        provides: ['tsne_embedding', 'kl_divergence']
+      },
+      'ml_traditional.unsupervised.dimensionality_reduction.umap': {
+        requires: ['data_preprocessing'],
+        provides: ['umap_embedding', 'umap_graph']
+      },
+      'timeseries.trend_analysis': {
+        requires: ['time_series_data'],
+        provides: ['trend_components', 'trend_statistics']
+      },
+      'timeseries.seasonality': {
+        requires: ['time_series_data'],
+        provides: ['seasonal_components', 'seasonal_patterns']
+      },
+      'timeseries.forecasting': {
+        requires: ['timeseries.trend_analysis'],
+        provides: ['forecast_values', 'confidence_intervals', 'forecast_metrics']
+      },
+      'visualization.2d.scatter': {
+        requires: ['numeric_data'],
+        provides: ['scatter_plot', 'plot_insights']
+      },
+      'visualization.2d.line': {
+        requires: ['numeric_data'],
+        provides: ['line_plot', 'trend_visualization']
+      },
+      'visualization.2d.bar': {
+        requires: ['categorical_data'],
+        provides: ['bar_plot', 'category_comparison']
+      },
+      'visualization.2d.histogram': {
+        requires: ['numeric_data'],
+        provides: ['histogram_plot', 'distribution_visualization']
+      },
+      'visualization.2d.boxplot': {
+        requires: ['numeric_data'],
+        provides: ['boxplot', 'distribution_comparison']
       },
       'visualization.2d.heatmap': {
         requires: ['correlation_matrix'],
         provides: ['heatmap_plot', 'correlation_insights']
       },
+      'visualization.3d.scatter_3d': {
+        requires: ['pca_components', 'transformed_data'],
+        provides: ['3d_plot', 'dimensional_insights']
+      },
+      'visualization.3d.surface': {
+        requires: ['grid_data'],
+        provides: ['surface_plot', '3d_visualization']
+      },
+      'visualization.interactive.plotly': {
+        requires: ['processed_data'],
+        provides: ['interactive_plot', 'html_visualization']
+      },
+      'visualization.interactive.bokeh': {
+        requires: ['processed_data'],
+        provides: ['interactive_plot', 'html_visualization']
+      },
       'deep_learning.computer_vision.image_classification': {
         requires: ['image_data', 'preprocessed_images'],
         provides: ['trained_model', 'classification_results', 'model_checkpoints']
       },
+      'deep_learning.computer_vision.object_detection': {
+        requires: ['image_data', 'annotated_images'],
+        provides: ['detection_model', 'detection_results', 'model_checkpoints']
+      },
       'deep_learning.nlp.text_classification': {
         requires: ['text_data', 'tokenized_text'],
-        provides: ['trained_model', 'text_predictions', 'model_checkpoints']
+        provides: ['text_model', 'text_predictions', 'model_checkpoints']
+      },
+      'deep_learning.nlp.sentiment_analysis': {
+        requires: ['text_data', 'labeled_text'],
+        provides: ['sentiment_model', 'sentiment_predictions', 'model_checkpoints']
       }
     };
   }
@@ -22,27 +192,44 @@
       'basic': {
         compatible_with: ['basic', 'advanced', 'visualization'],
         incompatible_with: ['deep_learning'],
-        data_types: ['tabular', 'numeric']
+        data_types: ['tabular', 'numeric'],
+        execution_time: 'fast',
+        resource_requirements: 'low'
       },
       'advanced': {
         compatible_with: ['basic', 'advanced', 'ml_traditional', 'visualization'],
         incompatible_with: [],
-        data_types: ['tabular', 'numeric']
+        data_types: ['tabular', 'numeric'],
+        execution_time: 'medium',
+        resource_requirements: 'medium'
       },
       'ml_traditional': {
         compatible_with: ['basic', 'advanced', 'visualization'],
         incompatible_with: ['deep_learning'],
-        data_types: ['tabular', 'numeric', 'categorical']
+        data_types: ['tabular', 'numeric', 'categorical'],
+        execution_time: 'medium',
+        resource_requirements: 'medium'
+      },
+      'timeseries': {
+        compatible_with: ['basic', 'visualization'],
+        incompatible_with: ['ml_traditional', 'deep_learning'],
+        data_types: ['time_series'],
+        execution_time: 'medium',
+        resource_requirements: 'medium'
       },
       'deep_learning': {
         compatible_with: ['visualization'],
         incompatible_with: ['basic', 'advanced', 'ml_traditional'],
-        data_types: ['image', 'text', 'audio', 'video']
+        data_types: ['image', 'text', 'audio', 'video'],
+        execution_time: 'slow',
+        resource_requirements: 'high'
       },
       'visualization': {
-        compatible_with: ['basic', 'advanced', 'ml_traditional', 'deep_learning'],
+        compatible_with: ['basic', 'advanced', 'ml_traditional', 'deep_learning', 'timeseries'],
         incompatible_with: [],
-        data_types: ['all']
+        data_types: ['all'],
+        execution_time: 'fast',
+        resource_requirements: 'low'
       }
     };
   }
@@ -667,7 +854,8 @@
       'deep_learning': 300,
       'visualization': 10,
       'preprocessing': 20,
-      'postprocessing': 10
+      'postprocessing': 10,
+      'timeseries': 45
     };
 
     let baseTime = baseTimes[step.type] || 30;
@@ -679,6 +867,9 @@
       }
       if (step.params.n_clusters && step.params.n_clusters > 10) {
         baseTime *= 1.5;
+      }
+      if (step.params.n_components && step.params.n_components > 10) {
+        baseTime *= 1.3;
       }
     }
 
@@ -693,10 +884,24 @@
       'deep_learning': { memory_mb: 4000, cpu_cores: 8, gpu_required: true, disk_space_mb: 500 },
       'visualization': { memory_mb: 200, cpu_cores: 1, gpu_required: false, disk_space_mb: 20 },
       'preprocessing': { memory_mb: 300, cpu_cores: 2, gpu_required: false, disk_space_mb: 30 },
-      'postprocessing': { memory_mb: 100, cpu_cores: 1, gpu_required: false, disk_space_mb: 10 }
+      'postprocessing': { memory_mb: 100, cpu_cores: 1, gpu_required: false, disk_space_mb: 10 },
+      'timeseries': { memory_mb: 400, cpu_cores: 2, gpu_required: false, disk_space_mb: 40 }
     };
 
-    return baseResources[step.type] || baseResources['basic'];
+    const resources = baseResources[step.type] || baseResources['basic'];
+    
+    // 파라미터에 따른 리소스 조정
+    if (step.params) {
+      if (step.params.n_estimators && step.params.n_estimators > 100) {
+        resources.memory_mb *= 1.5;
+        resources.cpu_cores = Math.min(resources.cpu_cores + 1, 8);
+      }
+      if (step.params.batch_size && step.params.batch_size > 32) {
+        resources.memory_mb *= 1.3;
+      }
+    }
+
+    return resources;
   }
 
   // 유틸리티 메서드들
@@ -706,7 +911,10 @@
       'advanced': ['advanced', 'pca', 'clustering', 'outlier', 'feature'],
       'ml_traditional': ['ml', 'machine', 'learning', 'regression', 'classification'],
       'deep_learning': ['deep', 'neural', 'cnn', 'rnn', 'transformer'],
-      'visualization': ['plot', 'chart', 'graph', 'visual', 'scatter', 'heatmap']
+      'visualization': ['plot', 'chart', 'graph', 'visual', 'scatter', 'heatmap'],
+      'timeseries': ['time', 'series', 'trend', 'seasonal', 'forecast'],
+      'preprocessing': ['preprocess', 'clean', 'normalize', 'scale'],
+      'postprocessing': ['report', 'summary', 'export', 'save']
     };
 
     return keywordMap[step.type] || [];
@@ -777,6 +985,14 @@
       const additionalSteps = this.getAdditionalStepsForComplexAnalysis();
       workflow.steps.push(...additionalSteps);
     }
+
+    // 데이터 타입에 따른 조정
+    const dataType = queryAnalysis.data_requirements.data_type;
+    if (dataType === 'time_series') {
+      // 시계열 분석 단계 추가
+      const timeseriesSteps = this.getTimeseriesSteps();
+      workflow.steps.unshift(...timeseriesSteps);
+    }
   }
 
   getAdditionalStepsForComplexAnalysis() {
@@ -790,6 +1006,28 @@
         type: 'postprocessing',
         method: 'sensitivity_analysis',
         params: {}
+      },
+      {
+        type: 'visualization',
+        method: 'interactive.plotly',
+        params: {
+          chart_type: 'dashboard'
+        }
+      }
+    ];
+  }
+
+  getTimeseriesSteps() {
+    return [
+      {
+        type: 'timeseries',
+        method: 'trend_analysis',
+        params: {}
+      },
+      {
+        type: 'timeseries',
+        method: 'seasonality',
+        params: {}
       }
     ];
   }
@@ -801,15 +1039,29 @@
     // 메서드별 기본 파라미터 설정
     if (method.includes('clustering')) {
       baseParams.n_clusters = parameters.model.n_clusters || 'auto';
+      baseParams.random_state = parameters.model.random_state || 42;
     }
     
     if (method.includes('pca')) {
       baseParams.n_components = parameters.model.n_components || 3;
+      baseParams.whiten = parameters.model.whiten || false;
     }
     
     if (method.includes('regression') || method.includes('classification')) {
       baseParams.test_size = parameters.model.test_size || 0.2;
       baseParams.random_state = parameters.model.random_state || 42;
+      baseParams.cross_validation = parameters.model.cross_validation || false;
+    }
+
+    if (method.includes('ensemble')) {
+      baseParams.n_estimators = parameters.model.n_estimators || 100;
+      baseParams.voting = parameters.model.voting || 'hard';
+    }
+
+    if (method.includes('deep_learning')) {
+      baseParams.epochs = parameters.model.epochs || 50;
+      baseParams.batch_size = parameters.model.batch_size || 32;
+      baseParams.learning_rate = parameters.model.learning_rate || 0.001;
     }
 
     return baseParams;
@@ -817,6 +1069,7 @@
 
   selectVisualizationMethod(intentAnalysis, queryAnalysis) {
     const { keywords } = intentAnalysis;
+    const { data_requirements } = queryAnalysis;
     
     // PCA 결과가 있으면 3D 시각화
     if (keywords.analysis?.some(a => a.type === 'pca')) {
@@ -827,14 +1080,36 @@
     if (keywords.analysis?.some(a => a.type === 'correlation')) {
       return '2d.heatmap';
     }
+
+    // 시계열 데이터면 선 그래프
+    if (data_requirements.data_type === 'time_series') {
+      return '2d.line';
+    }
+
+    // 클러스터링이 있으면 색상으로 구분된 산점도
+    if (keywords.analysis?.some(a => a.type === 'clustering')) {
+      return '2d.scatter';
+    }
     
     // 기본적으로 산점도
     return '2d.scatter';
   }
 
   extractVisualizationParameters(queryAnalysis) {
-    const { parameters } = queryAnalysis;
-    return parameters.visualization || {};
+    const { parameters, column_references } = queryAnalysis;
+    const vizParams = parameters.visualization || {};
+
+    // 컬럼 참조가 있으면 자동으로 설정
+    if (column_references.explicit.length >= 2) {
+      vizParams.x_column = column_references.explicit[0].column;
+      vizParams.y_column = column_references.explicit[1].column;
+    }
+
+    if (column_references.explicit.length >= 3) {
+      vizParams.color_by = column_references.explicit[2].column;
+    }
+
+    return vizParams;
   }
 
   buildFallbackWorkflow(intentAnalysis, queryAnalysis) {
@@ -849,6 +1124,11 @@
             params: {}
           },
           {
+            type: 'basic',
+            method: 'correlation',
+            params: {}
+          },
+          {
             type: 'visualization',
             method: '2d.scatter',
             params: {}
@@ -856,82 +1136,215 @@
         ]
       },
       execution_plan: {
-        total_steps: 2,
-        execution_order: [],
+        total_steps: 3,
+        execution_order: [
+          {
+            step_index: 0,
+            step: { type: 'basic', method: 'descriptive_stats', params: {} },
+            parallel_group: null,
+            estimated_time: 15,
+            resource_requirements: { memory_mb: 100, cpu_cores: 1, gpu_required: false, disk_space_mb: 10 }
+          },
+          {
+            step_index: 1,
+            step: { type: 'basic', method: 'correlation', params: {} },
+            parallel_group: null,
+            estimated_time: 15,
+            resource_requirements: { memory_mb: 100, cpu_cores: 1, gpu_required: false, disk_space_mb: 10 }
+          },
+          {
+            step_index: 2,
+            step: { type: 'visualization', method: '2d.scatter', params: {} },
+            parallel_group: null,
+            estimated_time: 10,
+            resource_requirements: { memory_mb: 200, cpu_cores: 1, gpu_required: false, disk_space_mb: 20 }
+          }
+        ],
         parallel_groups: [],
         resource_allocation: {},
-        checkpoints: []
+        checkpoints: [
+          {
+            step_index: 1,
+            description: '중간 체크포인트 1'
+          }
+        ]
       },
-      estimated_time: 30,
-      resource_requirements: {// parsers/workflow-builder.js
-import { Logger } from '../utils/logger.js';
-import fs from 'fs/promises';
-
-export class WorkflowBuilder {
-  constructor() {
-    this.logger = new Logger();
-    this.workflowTemplates = null;
-    this.stepDependencies = this.initializeStepDependencies();
-    this.stepCompatibility = this.initializeStepCompatibility();
-  }
-
-  async initialize() {
-    try {
-      await this.loadWorkflowTemplates();
-      this.logger.info('WorkflowBuilder 초기화 완료');
-    } catch (error) {
-      this.logger.error('WorkflowBuilder 초기화 실패:', error);
-      throw error;
-    }
-  }
-
-  async loadWorkflowTemplates() {
-    try {
-      const templatesData = await fs.readFile('./config/pipeline-templates.json', 'utf-8');
-      this.workflowTemplates = JSON.parse(templatesData);
-    } catch (error) {
-      this.logger.warn('워크플로우 템플릿 로드 실패:', error);
-      this.workflowTemplates = { common_workflows: {}, ml_workflows: {} };
-    }
-  }
-
-  initializeStepDependencies() {
-    return {
-      'basic.correlation': {
-        requires: ['basic.descriptive_stats'],
-        provides: ['correlation_matrix', 'correlation_results']
-      },
-      'advanced.feature_engineering': {
-        requires: ['basic.correlation'],
-        provides: ['engineered_features', 'feature_importance']
-      },
-      'advanced.pca': {
-        requires: ['basic.descriptive_stats'],
-        provides: ['pca_components', 'explained_variance', 'transformed_data']
-      },
-      'ml_traditional.supervised.regression': {
-        requires: ['data_preprocessing'],
-        provides: ['trained_model', 'predictions', 'model_metrics']
-      },
-      'ml_traditional.supervised.classification': {
-        requires: ['data_preprocessing'],
-        provides: ['trained_model', 'predictions', 'classification_report']
-      },
-      'ml_traditional.unsupervised.clustering': {
-        requires: ['data_preprocessing'],
-        provides: ['cluster_labels', 'cluster_centers', 'cluster_metrics']
-      },
-      'visualization.2d.scatter': {
-        requires: ['numeric_data'],
-        provides: ['scatter_plot', 'plot_insights']
-      },
-      '
+      estimated_time: 40,
+      resource_requirements: {
         memory_mb: 200,
-           cpu_cores: 1,
-           gpu_required: false,
-           disk_space_mb: 20,
-           network_required: false
-         }
-       };
-     }
-   }
+        cpu_cores: 1,
+        gpu_required: false,
+        disk_space_mb: 40,
+        network_required: false
+      }
+    };
+  }
+
+  // 워크플로우 검증 메서드
+  validateWorkflow(workflow) {
+    const validationResults = {
+      isValid: true,
+      errors: [],
+      warnings: [],
+      suggestions: []
+    };
+
+    // 기본 구조 검증
+    if (!workflow.steps || workflow.steps.length === 0) {
+      validationResults.errors.push('워크플로우에 단계가 없습니다.');
+      validationResults.isValid = false;
+    }
+
+    // 각 단계 검증
+    for (let i = 0; i < workflow.steps.length; i++) {
+      const step = workflow.steps[i];
+      
+      if (!step.type || !step.method) {
+        validationResults.errors.push(`단계 ${i + 1}: type과 method가 필요합니다.`);
+        validationResults.isValid = false;
+      }
+
+      // 호환성 검증
+      const compatibility = this.stepCompatibility[step.type];
+      if (compatibility) {
+        const previousSteps = workflow.steps.slice(0, i);
+        for (const prevStep of previousSteps) {
+          if (compatibility.incompatible_with.includes(prevStep.type)) {
+            validationResults.warnings.push(
+              `단계 ${i + 1} (${step.type})은 단계 ${previousSteps.indexOf(prevStep) + 1} (${prevStep.type})과 호환되지 않을 수 있습니다.`
+            );
+          }
+        }
+      }
+    }
+
+    // 종속성 검증
+    const dependencyIssues = this.validateDependencies(workflow.steps);
+    if (dependencyIssues.length > 0) {
+      validationResults.warnings.push(...dependencyIssues.map(issue =>
+        `단계 ${issue.position + 1} (${issue.step})의 종속성이 충족되지 않았습니다: ${issue.missing_dependencies.join(', ')}`
+      ));
+    }
+
+    // 리소스 요구사항 검증
+    const resourceReq = this.calculateResourceRequirements(workflow);
+    if (resourceReq.memory_mb > 16000) {
+      validationResults.warnings.push('높은 메모리 사용량이 예상됩니다. 시스템 리소스를 확인하세요.');
+    }
+
+    if (resourceReq.gpu_required) {
+      validationResults.suggestions.push('GPU가 필요한 작업입니다. GPU 사용 가능 여부를 확인하세요.');
+    }
+
+    return validationResults;
+  }
+
+  // 워크플로우 최적화 제안
+  suggestOptimizations(workflow) {
+    const suggestions = [];
+
+    // 병렬 처리 제안
+    const parallelGroups = this.identifyParallelSteps(workflow.steps);
+    if (parallelGroups.length > 0) {
+      suggestions.push({
+        type: 'parallelization',
+        message: `${parallelGroups.length}개의 병렬 처리 그룹을 식별했습니다. 실행 시간을 단축할 수 있습니다.`,
+        groups: parallelGroups
+      });
+    }
+
+    // 중복 단계 제거 제안
+    const duplicates = this.findDuplicateSteps(workflow.steps);
+    if (duplicates.length > 0) {
+      suggestions.push({
+        type: 'deduplication',
+        message: '중복된 단계를 제거하여 효율성을 높일 수 있습니다.',
+        duplicates: duplicates
+      });
+    }
+
+    // 시각화 최적화 제안
+    const vizSteps = workflow.steps.filter(step => step.type === 'visualization');
+    if (vizSteps.length > 3) {
+      suggestions.push({
+        type: 'visualization_optimization',
+        message: '많은 시각화 단계가 있습니다. 대시보드 형태로 통합하는 것을 고려하세요.',
+        count: vizSteps.length
+      });
+    }
+
+    return suggestions;
+  }
+
+  findDuplicateSteps(steps) {
+    const stepCounts = {};
+    const duplicates = [];
+
+    for (const step of steps) {
+      const stepKey = `${step.type}.${step.method}`;
+      stepCounts[stepKey] = (stepCounts[stepKey] || 0) + 1;
+    }
+
+    for (const [stepKey, count] of Object.entries(stepCounts)) {
+      if (count > 1) {
+        duplicates.push({ step: stepKey, count: count });
+      }
+    }
+
+    return duplicates;
+  }
+
+  // 워크플로우 실행 시뮬레이션
+  simulateExecution(workflow) {
+    const simulation = {
+      total_time: 0,
+      memory_peak: 0,
+      timeline: []
+    };
+
+    let currentTime = 0;
+    let currentMemory = 0;
+
+    for (let i = 0; i < workflow.steps.length; i++) {
+      const step = workflow.steps[i];
+      const stepTime = this.estimateStepTime(step);
+      const stepResources = this.calculateStepResources(step);
+
+      // 병렬 그룹 확인
+      const parallelGroup = workflow.parallel_groups?.find(group => group.includes(i));
+      
+      if (!parallelGroup) {
+        currentTime += stepTime;
+        currentMemory += stepResources.memory_mb;
+      } else {
+        // 병렬 그룹의 첫 번째 단계인 경우에만 시간 추가
+        if (i === Math.min(...parallelGroup)) {
+          const groupTime = Math.max(...parallelGroup.map(idx =>
+            this.estimateStepTime(workflow.steps[idx])
+          ));
+          currentTime += groupTime;
+        }
+        currentMemory += stepResources.memory_mb;
+      }
+
+      simulation.memory_peak = Math.max(simulation.memory_peak, currentMemory);
+      
+      simulation.timeline.push({
+        step_index: i,
+        step_name: `${step.type}.${step.method}`,
+        start_time: currentTime - stepTime,
+        end_time: currentTime,
+        memory_usage: currentMemory,
+        parallel_group: parallelGroup ? parallelGroup.indexOf(i) : null
+      });
+
+      // 단계 완료 후 메모리 해제 (시각화 제외)
+      if (step.type !== 'visualization') {
+        currentMemory = Math.max(0, currentMemory - stepResources.memory_mb * 0.5);
+      }
+    }
+
+    simulation.total_time = currentTime;
+    return simulation;
+  }
+}

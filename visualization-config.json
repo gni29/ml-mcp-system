@@ -371,4 +371,486 @@
       "plotly": {
         "script": "python/visualization/interactive/plotly_charts.py",
         "class": "PlotlyCharts",
-        "method":
+        "method": "create",
+        "description": "인터랙티브 Plotly 차트",
+        "default_params": {
+          "theme": "plotly_white",
+          "width": 800,
+          "height": 600,
+          "showlegend": true
+        },
+        "supported_charts": {
+          "scatter": "산점도",
+          "line": "선 그래프",
+          "bar": "막대 그래프",
+          "heatmap": "히트맵",
+          "3d_scatter": "3D 산점도",
+          "scatter_matrix": "산점도 매트릭스",
+          "parallel_coordinates": "평행 좌표",
+          "treemap": "트리맵",
+          "sunburst": "선버스트 차트",
+          "violin": "바이올린 플롯"
+        },
+        "supported_params": {
+          "chart_type": {
+            "type": "string",
+            "required": true,
+            "description": "차트 타입"
+          },
+          "x_column": {
+            "type": "string",
+            "required": false,
+            "description": "X축 컬럼명"
+          },
+          "y_column": {
+            "type": "string",
+            "required": false,
+            "description": "Y축 컬럼명"
+          },
+          "color_column": {
+            "type": "string",
+            "required": false,
+            "description": "색상 구분 컬럼명"
+          },
+          "size_column": {
+            "type": "string",
+            "required": false,
+            "description": "크기 구분 컬럼명"
+          },
+          "title": {
+            "type": "string",
+            "required": false,
+            "description": "차트 제목"
+          },
+          "hover_data": {
+            "type": "list",
+            "required": false,
+            "description": "호버시 표시할 컬럼들"
+          }
+        }
+      },
+      "bokeh": {
+        "script": "python/visualization/interactive/bokeh_charts.py",
+        "class": "BokehCharts",
+        "method": "create",
+        "description": "인터랙티브 Bokeh 차트",
+        "default_params": {
+          "width": 800,
+          "height": 600,
+          "tools": "pan,wheel_zoom,box_zoom,reset,save,hover",
+          "toolbar_location": "above"
+        },
+        "supported_charts": {
+          "scatter": "산점도",
+          "line": "선 그래프",
+          "bar": "막대 그래프",
+          "heatmap": "히트맵",
+          "histogram": "히스토그램"
+        },
+        "supported_params": {
+          "chart_type": {
+            "type": "string",
+            "required": true,
+            "description": "차트 타입"
+          },
+          "x_column": {
+            "type": "string",
+            "required": false,
+            "description": "X축 컬럼명"
+          },
+          "y_column": {
+            "type": "string",
+            "required": false,
+            "description": "Y축 컬럼명"
+          },
+          "color_column": {
+            "type": "string",
+            "required": false,
+            "description": "색상 구분 컬럼명"
+          },
+          "title": {
+            "type": "string",
+            "required": false,
+            "description": "차트 제목"
+          }
+        }
+      }
+    }
+  },
+  "chart_styles": {
+    "color_palettes": {
+      "qualitative": ["Set1", "Set2", "Set3", "Pastel1", "Pastel2", "Dark2", "Accent", "tab10", "tab20"],
+      "sequential": ["viridis", "plasma", "inferno", "magma", "Blues", "Greens", "Reds", "Oranges", "Purples", "BuGn", "BuPu", "GnBu", "OrRd", "YlGn", "YlGnBu", "YlOrBr", "YlOrRd"],
+      "diverging": ["coolwarm", "RdYlBu", "RdBu", "PiYG", "PRGn", "BrBG", "seismic", "RdGy", "Spectral"]
+    },
+    "themes": {
+      "default": {
+        "figure_facecolor": "white",
+        "axes_facecolor": "white",
+        "grid_color": "#E0E0E0",
+        "text_color": "black",
+        "font_family": "Arial",
+        "font_size": 12
+      },
+      "dark": {
+        "figure_facecolor": "#2E2E2E",
+        "axes_facecolor": "#2E2E2E",
+        "grid_color": "#404040",
+        "text_color": "white",
+        "font_family": "Arial",
+        "font_size": 12
+      },
+      "minimal": {
+        "figure_facecolor": "white",
+        "axes_facecolor": "white",
+        "grid_color": "#F0F0F0",
+        "text_color": "#333333",
+        "font_family": "Helvetica",
+        "font_size": 11
+      },
+      "scientific": {
+        "figure_facecolor": "white",
+        "axes_facecolor": "white",
+        "grid_color": "#CCCCCC",
+        "text_color": "black",
+        "font_family": "Times New Roman",
+        "font_size": 14
+      }
+    },
+    "markers": {
+      "shapes": ["o", "s", "^", "v", "<", ">", "d", "p", "*", "+", "x", "D", "H"],
+      "sizes": {
+        "small": 20,
+        "medium": 50,
+        "large": 100,
+        "xlarge": 200
+      }
+    },
+    "lines": {
+      "styles": ["-", "--", "-.", ":", "solid", "dashed", "dashdot", "dotted"],
+      "widths": {
+        "thin": 1,
+        "medium": 2,
+        "thick": 3,
+        "very_thick": 5
+      }
+    }
+  },
+  "export_settings": {
+    "formats": ["png", "jpg", "svg", "pdf", "html", "json"],
+    "default_format": "png",
+    "dpi": 300,
+    "quality": 95,
+    "transparent": false,
+    "bbox_inches": "tight",
+    "facecolor": "auto",
+    "edgecolor": "none"
+  },
+  "layout_templates": {
+    "single_plot": {
+      "description": "단일 차트",
+      "layout": {
+        "rows": 1,
+        "cols": 1,
+        "figsize": [10, 8],
+        "hspace": 0.3,
+        "wspace": 0.3
+      }
+    },
+    "comparison": {
+      "description": "비교 차트 (1x2)",
+      "layout": {
+        "rows": 1,
+        "cols": 2,
+        "figsize": [16, 6],
+        "hspace": 0.3,
+        "wspace": 0.4
+      }
+    },
+    "dashboard": {
+      "description": "대시보드 (2x2)",
+      "layout": {
+        "rows": 2,
+        "cols": 2,
+        "figsize": [16, 12],
+        "hspace": 0.4,
+        "wspace": 0.3
+      }
+    },
+    "detailed": {
+      "description": "상세 분석 (2x3)",
+      "layout": {
+        "rows": 2,
+        "cols": 3,
+        "figsize": [20, 12],
+        "hspace": 0.4,
+        "wspace": 0.3
+      }
+    },
+    "vertical_stack": {
+      "description": "세로 배치 (3x1)",
+      "layout": {
+        "rows": 3,
+        "cols": 1,
+        "figsize": [10, 15],
+        "hspace": 0.5,
+        "wspace": 0.3
+      }
+    },
+    "horizontal_stack": {
+      "description": "가로 배치 (1x3)",
+      "layout": {
+        "rows": 1,
+        "cols": 3,
+        "figsize": [18, 6],
+        "hspace": 0.3,
+        "wspace": 0.4
+      }
+    }
+  },
+  "auto_chart_selection": {
+    "rules": {
+      "two_numeric": {
+        "condition": "두 개의 숫자형 변수",
+        "recommended_chart": "2d.scatter",
+        "alternatives": ["2d.line", "interactive.plotly"],
+        "description": "두 연속 변수 간의 관계를 보여줍니다"
+      },
+      "three_numeric": {
+        "condition": "세 개의 숫자형 변수",
+        "recommended_chart": "3d.scatter_3d",
+        "alternatives": ["2d.scatter", "interactive.plotly"],
+        "description": "세 연속 변수 간의 관계를 3차원으로 표현합니다"
+      },
+      "one_numeric_one_categorical": {
+        "condition": "숫자형 1개, 범주형 1개",
+        "recommended_chart": "2d.boxplot",
+        "alternatives": ["2d.bar", "2d.histogram", "interactive.plotly"],
+        "description": "범주별 숫자형 변수의 분포를 비교합니다"
+      },
+      "time_series": {
+        "condition": "시계열 데이터",
+        "recommended_chart": "2d.line",
+        "alternatives": ["interactive.plotly", "interactive.bokeh"],
+        "description": "시간에 따른 변화를 시각화합니다"
+      },
+      "correlation_matrix": {
+        "condition": "상관관계 매트릭스",
+        "recommended_chart": "2d.heatmap",
+        "alternatives": ["interactive.plotly"],
+        "description": "변수 간 상관관계를 색상으로 표현합니다"
+      },
+      "distribution": {
+        "condition": "분포 분석",
+        "recommended_chart": "2d.histogram",
+        "alternatives": ["2d.boxplot", "interactive.plotly"],
+        "description": "단일 변수의 분포를 시각화합니다"
+      },
+      "many_categories": {
+        "condition": "많은 범주를 가진 범주형 변수",
+        "recommended_chart": "interactive.plotly",
+        "alternatives": ["2d.bar"],
+        "description": "인터랙티브 차트로 많은 범주를 효과적으로 표시합니다"
+      },
+      "multivariate": {
+        "condition": "다변량 데이터",
+        "recommended_chart": "interactive.plotly",
+        "alternatives": ["2d.heatmap"],
+        "description": "여러 변수를 동시에 탐색할 수 있습니다"
+      }
+    },
+    "data_size_considerations": {
+      "small": {
+        "threshold": 1000,
+        "recommended_charts": ["2d.scatter", "2d.line", "2d.bar", "2d.boxplot"]
+      },
+      "medium": {
+        "threshold": 10000,
+        "recommended_charts": ["2d.scatter", "2d.histogram", "2d.heatmap", "interactive.plotly"]
+      },
+      "large": {
+        "threshold": 100000,
+        "recommended_charts": ["2d.histogram", "2d.heatmap", "interactive.bokeh"],
+        "sampling_recommended": true
+      },
+      "very_large": {
+        "threshold": 1000000,
+        "recommended_charts": ["2d.histogram", "interactive.bokeh"],
+        "sampling_required": true,
+        "sample_size": 10000
+      }
+    }
+  },
+  "ml_specific_charts": {
+    "model_evaluation": {
+      "confusion_matrix": {
+        "script": "python/visualization/ml/confusion_matrix.py",
+        "description": "혼동 행렬 히트맵",
+        "chart_type": "2d.heatmap",
+        "params": {
+          "annot": true,
+          "fmt": "d",
+          "cmap": "Blues"
+        }
+      },
+      "roc_curve": {
+        "script": "python/visualization/ml/roc_curve.py",
+        "description": "ROC 곡선",
+        "chart_type": "2d.line",
+        "params": {
+          "diagonal_line": true
+        }
+      },
+      "precision_recall": {
+        "script": "python/visualization/ml/precision_recall.py",
+        "description": "정밀도-재현율 곡선",
+        "chart_type": "2d.line"
+      },
+      "learning_curves": {
+        "script": "python/visualization/ml/learning_curves.py",
+        "description": "학습 곡선",
+        "chart_type": "2d.line",
+        "params": {
+          "multiple_lines": true
+        }
+      },
+      "validation_curve": {
+        "script": "python/visualization/ml/validation_curve.py",
+        "description": "검증 곡선",
+        "chart_type": "2d.line"
+      }
+    },
+    "feature_analysis": {
+      "feature_importance": {
+        "script": "python/visualization/ml/feature_importance.py",
+        "description": "피처 중요도 막대 그래프",
+        "chart_type": "2d.bar",
+        "params": {
+          "orientation": "horizontal"
+        }
+      },
+      "partial_dependence": {
+        "script": "python/visualization/ml/partial_dependence.py",
+        "description": "부분 의존성 플롯",
+        "chart_type": "2d.line"
+      },
+      "permutation_importance": {
+        "script": "python/visualization/ml/permutation_importance.py",
+        "description": "순열 중요도",
+        "chart_type": "2d.boxplot"
+      }
+    },
+    "clustering_results": {
+      "cluster_scatter": {
+        "script": "python/visualization/ml/clustering_results.py",
+        "description": "클러스터링 결과 산점도",
+        "chart_type": "2d.scatter",
+        "params": {
+          "color_by_cluster": true
+        }
+      },
+      "cluster_centers": {
+        "script": "python/visualization/ml/cluster_centers.py",
+        "description": "클러스터 중심점 시각화",
+        "chart_type": "2d.scatter"
+      },
+      "silhouette_plot": {
+        "script": "python/visualization/ml/silhouette_plot.py",
+        "description": "실루엣 분석",
+        "chart_type": "2d.bar"
+      }
+    },
+    "dimensionality_reduction": {
+      "pca_explained_variance": {
+        "script": "python/visualization/ml/pca_explained_variance.py",
+        "description": "PCA 설명 분산",
+        "chart_type": "2d.bar"
+      },
+      "pca_biplot": {
+        "script": "python/visualization/ml/pca_biplot.py",
+        "description": "PCA 바이플롯",
+        "chart_type": "2d.scatter"
+      },
+      "tsne_plot": {
+        "script": "python/visualization/ml/tsne_plot.py",
+        "description": "t-SNE 결과 시각화",
+        "chart_type": "2d.scatter"
+      }
+    }
+  },
+  "accessibility": {
+    "colorblind_friendly": {
+      "palettes": ["viridis", "plasma", "cividis", "Set2"],
+      "avoid_palettes": ["jet", "rainbow"]
+    },
+    "high_contrast": {
+      "enabled": false,
+      "background_color": "white",
+      "text_color": "black",
+      "grid_color": "#000000"
+    },
+    "font_sizing": {
+      "title_scale": 1.2,
+      "label_scale": 1.0,
+      "tick_scale": 0.9,
+      "legend_scale": 0.9
+    }
+  },
+  "performance": {
+    "optimization": {
+      "rasterize_large_plots": true,
+      "rasterize_threshold": 10000,
+      "use_agg_backend": true,
+      "cache_charts": true,
+      "parallel_rendering": false
+    },
+    "memory_management": {
+      "max_figure_size_mb": 50,
+      "auto_close_figures": true,
+      "garbage_collect": true
+    }
+  },
+  "internationalization": {
+    "supported_languages": ["ko", "en"],
+    "default_language": "ko",
+    "font_families": {
+      "ko": ["Malgun Gothic", "AppleGothic", "NanumGothic"],
+      "en": ["Arial", "Helvetica", "Times New Roman"]
+    },
+    "number_formats": {
+      "ko": {
+        "decimal_separator": ".",
+        "thousands_separator": ",",
+        "currency_symbol": "₩"
+      },
+      "en": {
+        "decimal_separator": ".",
+        "thousands_separator": ",",
+        "currency_symbol": "$"
+      }
+    }
+  },
+  "validation": {
+    "required_columns": {
+      "check_existence": true,
+      "auto_suggest": true
+    },
+    "data_types": {
+      "validate_numeric": true,
+      "validate_categorical": true,
+      "auto_convert": true
+    },
+    "data_quality": {
+      "check_missing_values": true,
+      "missing_value_threshold": 0.5,
+      "check_outliers": true,
+      "outlier_method": "iqr"
+    }
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "last_updated": "2024-07-03",
+    "author": "ML MCP System",
+    "description": "시각화 설정 파일 - 다양한 차트 타입과 스타일 옵션을 정의합니다"
+  }
+}
