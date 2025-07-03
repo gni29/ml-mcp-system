@@ -1,30 +1,6 @@
-// core/pipeline-manager.js
-import { Logger } from '../utils/logger.js';
-import { PythonExecutor } from '../tools/common/python-executor.js';
-import { ResultStore } from './result-store.js';
-import path from 'path';
-import fs from 'fs/promises';
+// core/pipeline-manager.js - 미완성 부분들 완성
 
-export class PipelineManager {
-  constructor(smartRouter) {
-    this.smartRouter = smartRouter;
-    this.logger = new Logger();
-    this.pythonExecutor = new PythonExecutor();
-    this.resultStore = new ResultStore();
-    this.currentSession = null;
-    this.isExecuting = false;
-  }
-
-  async initialize() {
-    try {
-      await this.pythonExecutor.initialize();
-      this.logger.info('PipelineManager 초기화 완료');
-    } catch (error) {
-      this.logger.error('PipelineManager 초기화 실패:', error);
-      throw error;
-    }
-  }
-
+  // executeWorkflow 메서드 완성
   async executeWorkflow(workflowData, sessionId, userQuery) {
     if (this.isExecuting) {
       throw new Error('다른 워크플로우가 실행 중입니다.');
@@ -90,463 +66,473 @@ export class PipelineManager {
     }
   }
 
-  async executeStep(step, intermediateResults, stepNumber) {
-    const stepStartTime = Date.now();
-    
+  // generateFinalResult 메서드 완성
+  async generateFinalResult(results) {
     try {
-      this.logger.info(`단계 ${stepNumber} 실행 시작`, {
-        type: step.type,
-        method: step.method
-      });
-
-      let result;
-      
-      switch (step.type) {
-        case 'basic':
-        case 'advanced':
-        case 'timeseries':
-          result = await this.executeAnalysisStep(step, intermediateResults);
-          break;
-        case 'ml_traditional':
-          result = await this.executeMLStep(step, intermediateResults);
-          break;
-        case 'deep_learning':
-          result = await this.executeDeepLearningStep(step, intermediateResults);
-          break;
-        case 'visualization':
-          result = await this.executeVisualizationStep(step, intermediateResults);
-          break;
-        default:
-          throw new Error(`알 수 없는 단계 타입: ${step.type}`);
-      }
-
-      const stepResult = {
-        stepNumber,
-        type: step.type,
-        method: step.method,
-        params: step.params,
-        success: true,
-        result: result,
-        executionTime: Date.now() - stepStartTime,
-        timestamp: new Date().toISOString()
+      const finalResult = {
+        summary: this.generateSummary(results),
+        outputs: this.collectOutputs(results),
+        visualizations: this.collectVisualizations(results),
+        statistics: this.collectStatistics(results),
+        recommendations: this.generateRecommendations(results),
+        artifacts: this.collectArtifacts(results)
       };
 
-      this.logger.info(`단계 ${stepNumber} 실행 완료`, {
-        executionTime: stepResult.executionTime
-      });
-
-      return stepResult;
-
+      return finalResult;
     } catch (error) {
-      this.logger.error(`단계 ${stepNumber} 실행 실패:`, error);
-      
+      this.logger.error('최종 결과 생성 실패:', error);
       return {
-        stepNumber,
-        type: step.type,
-        method: step.method,
-        params: step.params,
-        success: false,
         error: error.message,
-        executionTime: Date.now() - stepStartTime,
-        timestamp: new Date().toISOString()
+        partialResults: results.intermediateResults
       };
     }
   }
 
-  async executeAnalysisStep(step, intermediateResults) {
-    const methodConfig = this.smartRouter.getMethodConfig(step.type, step.method);
-    
-    if (!methodConfig) {
-      throw new Error(`설정을 찾을 수 없습니다: ${step.type}.${step.method}`);
-    }
+  generateSummary(results) {
+    const { steps, executionTime, workflowName } = results;
+    const successfulSteps = steps.filter(step => step.success).length;
+    const failedSteps = steps.filter(step => !step.success).length;
 
-    // Python 스크립트 실행
-    const pythonCode = this.generateAnalysisPythonCode(methodConfig, step.params, intermediateResults);
-    const result = await this.pythonExecutor.execute(pythonCode);
-
-    return this.parseAnalysisResult(result);
+    return {
+      workflowName,
+      totalSteps: steps.length,
+      successfulSteps,
+      failedSteps,
+      executionTime: `${(executionTime / 1000).toFixed(2)}초`,
+      successRate: `${((successfulSteps / steps.length) * 100).toFixed(1)}%`
+    };
   }
 
-  async executeMLStep(step, intermediateResults) {
-    const methodConfig = this.smartRouter.getMethodConfig(step.type, step.method);
+  collectOutputs(results) {
+    const outputs = {};
     
-    if (!methodConfig) {
-      throw new Error(`ML 설정을 찾을 수 없습니다: ${step.type}.${step.method}`);
-    }
-
-    // ML Python 스크립트 실행
-    const pythonCode = this.generateMLPythonCode(methodConfig, step.params, intermediateResults);
-    const result = await this.pythonExecutor.execute(pythonCode);
-
-    return this.parseMLResult(result);
-  }
-
-  async executeDeepLearningStep(step, intermediateResults) {
-    const [domain, task] = step.method.split('.');
-    const dlConfig = this.smartRouter.getDeepLearningConfig(domain, task);
-    
-    if (!dlConfig) {
-      throw new Error(`딥러닝 설정을 찾을 수 없습니다: ${domain}.${task}`);
-    }
-
-    // 딥러닝 모드 결정 (training vs inference)
-    const mode = step.params.mode || 'training';
-    const scriptPath = dlConfig[mode];
-
-    if (!scriptPath) {
-      throw new Error(`딥러닝 스크립트를 찾을 수 없습니다: ${mode}`);
-    }
-
-    // 딥러닝 Python 스크립트 실행
-    const pythonCode = this.generateDeepLearningPythonCode(scriptPath, step.params, intermediateResults);
-    const result = await this.pythonExecutor.execute(pythonCode, {
-      timeout: 600000 // 10분 타임아웃
+    results.steps.forEach((step, index) => {
+      if (step.success && step.result) {
+        outputs[`step_${index + 1}`] = {
+          type: step.type,
+          method: step.method,
+          result: step.result,
+          executionTime: step.executionTime
+        };
+      }
     });
 
-    return this.parseDeepLearningResult(result);
+    return outputs;
   }
 
-  async executeVisualizationStep(step, intermediateResults) {
-    const vizConfig = this.smartRouter.getVisualizationConfig(step.method);
+  collectVisualizations(results) {
+    const visualizations = [];
     
-    if (!vizConfig) {
-      throw new Error(`시각화 설정을 찾을 수 없습니다: ${step.method}`);
+    results.steps.forEach((step, index) => {
+      if (step.success && step.type === 'visualization' && step.result) {
+        visualizations.push({
+          stepNumber: index + 1,
+          chartType: step.method,
+          filePath: step.result.chart_path,
+          description: step.result.description || `${step.method} 차트`
+        });
+      }
+    });
+
+    return visualizations;
+  }
+
+  collectStatistics(results) {
+    const statistics = {};
+    
+    results.steps.forEach((step, index) => {
+      if (step.success &&
+          (step.type === 'basic' || step.type === 'advanced') &&
+          step.result &&
+          step.result.statistics) {
+        statistics[`${step.type}_${step.method}`] = step.result.statistics;
+      }
+    });
+
+    return statistics;
+  }
+
+  generateRecommendations(results) {
+    const recommendations = [];
+    
+    // 데이터 품질 기반 권장사항
+    const dataQuality = this.assessDataQuality(results);
+    if (dataQuality.missingValues > 0.1) {
+      recommendations.push('데이터에 누락값이 많습니다. 데이터 전처리를 고려해보세요.');
     }
 
-    // 시각화 Python 스크립트 실행
-    const pythonCode = this.generateVisualizationPythonCode(vizConfig, step.params, intermediateResults);
-    const result = await this.pythonExecutor.execute(pythonCode);
-
-    return this.parseVisualizationResult(result);
-  }
-
-  generateAnalysisPythonCode(methodConfig, params, intermediateResults) {
-    const { script, class: className, method } = methodConfig;
-    
-    return `
-import sys
-import json
-import pandas as pd
-import numpy as np
-from pathlib import Path
-
-# 스크립트 경로 추가
-sys.path.append('${path.dirname(script)}')
-
-# 클래스 import
-from ${path.basename(script, '.py')} import ${className}
-
-# 데이터 로드
-data_path = "${params.data_path || 'data/current_data.csv'}"
-if Path(data_path).exists():
-    df = pd.read_csv(data_path)
-else:
-    # 중간 결과에서 데이터 로드
-    df = pd.read_csv('temp/intermediate_data.csv')
-
-# 분석 실행
-analyzer = ${className}()
-result = analyzer.${method}(df, **${JSON.stringify(params)})
-
-# 결과 저장
-output = {
-    'success': True,
-    'result': result,
-    'data_shape': df.shape,
-    'columns': df.columns.tolist()
-}
-
-print(json.dumps(output, default=str))
-    `;
-  }
-
-  generateMLPythonCode(methodConfig, params, intermediateResults) {
-    const { script, class: className, method } = methodConfig;
-    
-    return `
-import sys
-import json
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, regression_report
-
-# 스크립트 경로 추가
-sys.path.append('${path.dirname(script)}')
-
-# 클래스 import
-from ${path.basename(script, '.py')} import ${className}
-
-# 데이터 로드
-data_path = "${params.data_path || 'data/current_data.csv'}"
-df = pd.read_csv(data_path)
-
-# 타겟 변수 분리
-target_column = "${params.target_column || 'target'}"
-if target_column not in df.columns:
-    # 자동으로 타겟 변수 찾기
-    target_column = df.columns[-1]
-
-X = df.drop(columns=[target_column])
-y = df[target_column]
-
-# 훈련/테스트 분할
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
-
-# 모델 훈련 및 평가
-model = ${className}()
-result = model.${method}(X_train, X_test, y_train, y_test, **${JSON.stringify(params)})
-
-# 결과 저장
-output = {
-    'success': True,
-    'result': result,
-    'data_shape': df.shape,
-    'features': X.columns.tolist(),
-    'target': target_column
-}
-
-print(json.dumps(output, default=str))
-    `;
-  }
-
-  generateDeepLearningPythonCode(scriptPath, params, intermediateResults) {
-    return `
-import sys
-import json
-import torch
-from pathlib import Path
-
-# 스크립트 경로 추가
-sys.path.append('${path.dirname(scriptPath)}')
-
-# 메인 실행 함수 import
-from ${path.basename(scriptPath, '.py')} import main
-
-# 설정 파라미터
-config = ${JSON.stringify(params)}
-
-# 딥러닝 실행
-try:
-    result = main(config)
-    output = {
-        'success': True,
-        'result': result
-    }
-except Exception as e:
-    output = {
-        'success': False,
-        'error': str(e)
+    // 모델 성능 기반 권장사항
+    const modelPerformance = this.assessModelPerformance(results);
+    if (modelPerformance.accuracy < 0.8) {
+      recommendations.push('모델 성능이 낮습니다. 하이퍼파라미터 튜닝을 고려해보세요.');
     }
 
-print(json.dumps(output, default=str))
-    `;
+    // 추가 분석 제안
+    const hasCorrelation = results.steps.some(step =>
+      step.type === 'basic' && step.method === 'correlation'
+    );
+    if (!hasCorrelation) {
+      recommendations.push('변수 간 상관관계 분석을 추가해보세요.');
+    }
+
+    return recommendations;
   }
 
+  collectArtifacts(results) {
+    const artifacts = [];
+    
+    results.steps.forEach((step, index) => {
+      if (step.success && step.result) {
+        // 생성된 파일들 수집
+        if (step.result.chart_path) {
+          artifacts.push({
+            type: 'visualization',
+            name: `${step.method}_chart`,
+            path: step.result.chart_path,
+            stepNumber: index + 1
+          });
+        }
+        
+        if (step.result.model_path) {
+          artifacts.push({
+            type: 'model',
+            name: `${step.method}_model`,
+            path: step.result.model_path,
+            stepNumber: index + 1
+          });
+        }
+        
+        if (step.result.report_path) {
+          artifacts.push({
+            type: 'report',
+            name: `${step.method}_report`,
+            path: step.result.report_path,
+            stepNumber: index + 1
+          });
+        }
+      }
+    });
+
+    return artifacts;
+  }
+
+  assessDataQuality(results) {
+    // 데이터 품질 평가 로직
+    let missingValues = 0;
+    let dataShape = null;
+    
+    const dataLoadStep = results.steps.find(step =>
+      step.type === 'data_loading' && step.success
+    );
+    
+    if (dataLoadStep && dataLoadStep.result) {
+      const stats = dataLoadStep.result.statistics;
+      if (stats && stats.missing_percentage) {
+        missingValues = stats.missing_percentage / 100;
+      }
+      dataShape = {
+        rows: dataLoadStep.result.rowCount,
+        columns: dataLoadStep.result.columnCount
+      };
+    }
+    
+    return {
+      missingValues,
+      dataShape,
+      quality: missingValues < 0.05 ? 'high' : missingValues < 0.2 ? 'medium' : 'low'
+    };
+  }
+
+  assessModelPerformance(results) {
+    // 모델 성능 평가 로직
+    let accuracy = null;
+    let metrics = {};
+    
+    const mlSteps = results.steps.filter(step =>
+      step.type === 'ml_traditional' && step.success
+    );
+    
+    if (mlSteps.length > 0) {
+      const lastMlStep = mlSteps[mlSteps.length - 1];
+      if (lastMlStep.result && lastMlStep.result.metrics) {
+        metrics = lastMlStep.result.metrics;
+        accuracy = metrics.accuracy || metrics.r2_score || null;
+      }
+    }
+    
+    return {
+      accuracy,
+      metrics,
+      performance: accuracy ? (accuracy > 0.8 ? 'high' : accuracy > 0.6 ? 'medium' : 'low') : 'unknown'
+    };
+  }
+
+  // saveWorkflowResults 메서드 완성
+  async saveWorkflowResults(results) {
+    try {
+      // 결과 저장소에 저장
+      await this.resultStore.saveResults(results.sessionId, results);
+      
+      // 파일 시스템에도 저장
+      const resultsDir = './results';
+      await fs.mkdir(resultsDir, { recursive: true });
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `workflow_${results.sessionId}_${timestamp}.json`;
+      const filepath = path.join(resultsDir, filename);
+      
+      await fs.writeFile(filepath, JSON.stringify(results, null, 2));
+      
+      this.logger.info('워크플로우 결과 저장 완료:', filepath);
+    } catch (error) {
+      this.logger.error('워크플로우 결과 저장 실패:', error);
+      throw error;
+    }
+  }
+
+  // generateVisualizationPythonCode 메서드 완성
   generateVisualizationPythonCode(vizConfig, params, intermediateResults) {
-    const { script, class: className, method } = vizConfig;
+    const { script, chart_type, description } = vizConfig;
     
     return `
-import sys
-import json
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from pathlib import Path
+import json
+import os
+from datetime import datetime
 
-# 스크립트 경로 추가
-sys.path.append('${path.dirname(script)}')
+# 한글 폰트 설정
+plt.rcParams['font.family'] = 'DejaVu Sans'
+plt.rcParams['axes.unicode_minus'] = False
 
-# 클래스 import
-from ${path.basename(script, '.py')} import ${className}
+# 결과 디렉토리 설정
+output_dir = './results'
+os.makedirs(output_dir, exist_ok=True)
 
-# 데이터 로드
-data_path = "${params.data_path || 'data/current_data.csv'}"
-df = pd.read_csv(data_path)
-
-# 시각화 생성
-visualizer = ${className}()
-chart_path = visualizer.${method}(df, **${JSON.stringify(params)})
-
-# 결과 저장
-output = {
-    'success': True,
-    'chart_path': chart_path,
-    'data_shape': df.shape
-}
-
-print(json.dumps(output, default=str))
-    `;
+try:
+    # 데이터 로드
+    data_available = False
+    df = None
+    
+    # 중간 결과에서 데이터 찾기
+    ${JSON.stringify(intermediateResults)} # 중간 결과 데이터
+    
+    # 데이터 파일에서 로드
+    if os.path.exists('temp/current_data.csv'):
+        df = pd.read_csv('temp/current_data.csv')
+        data_available = True
+    elif os.path.exists('data/current_data.csv'):
+        df = pd.read_csv('data/current_data.csv')
+        data_available = True
+    
+    if not data_available:
+        raise ValueError("시각화할 데이터를 찾을 수 없습니다.")
+    
+    # 차트 생성
+    plt.figure(figsize=(12, 8))
+    
+    chart_type = '${chart_type}'
+    if chart_type == '2d.scatter':
+        # 산점도
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) >= 2:
+            x_col = numeric_cols[0]
+            y_col = numeric_cols[1]
+            plt.scatter(df[x_col], df[y_col], alpha=0.6)
+            plt.xlabel(x_col)
+            plt.ylabel(y_col)
+            plt.title(f'{x_col} vs {y_col}')
+        else:
+            raise ValueError("산점도를 그리기 위한 숫자 컬럼이 부족합니다.")
+    
+    elif chart_type == '2d.line':
+        # 선 그래프
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) >= 1:
+            y_col = numeric_cols[0]
+            plt.plot(df.index, df[y_col], marker='o')
+            plt.xlabel('Index')
+            plt.ylabel(y_col)
+            plt.title(f'{y_col} 추세')
+        else:
+            raise ValueError("선 그래프를 그리기 위한 숫자 컬럼이 부족합니다.")
+    
+    elif chart_type == '2d.bar':
+        # 막대 그래프
+        categorical_cols = df.select_dtypes(include=['object']).columns
+        if len(categorical_cols) >= 1:
+            cat_col = categorical_cols[0]
+            value_counts = df[cat_col].value_counts().head(10)
+            plt.bar(range(len(value_counts)), value_counts.values)
+            plt.xticks(range(len(value_counts)), value_counts.index, rotation=45)
+            plt.xlabel(cat_col)
+            plt.ylabel('Count')
+            plt.title(f'{cat_col} 분포')
+        else:
+            raise ValueError("막대 그래프를 그리기 위한 범주형 컬럼이 부족합니다.")
+    
+    elif chart_type == '2d.histogram':
+        # 히스토그램
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) >= 1:
+            col = numeric_cols[0]
+            plt.hist(df[col].dropna(), bins=30, alpha=0.7)
+            plt.xlabel(col)
+            plt.ylabel('Frequency')
+            plt.title(f'{col} 분포')
+        else:
+            raise ValueError("히스토그램을 그리기 위한 숫자 컬럼이 부족합니다.")
+    
+    elif chart_type == '2d.heatmap':
+        # 히트맵 (상관관계)
+        numeric_cols = df.select_dtypes(include=[np.number]).columns
+        if len(numeric_cols) >= 2:
+            correlation_matrix = df[numeric_cols].corr()
+            sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', center=0)
+            plt.title('상관관계 히트맵')
+        else:
+            raise ValueError("히트맵을 그리기 위한 숫자 컬럼이 부족합니다.")
+    
+    else:
+        raise ValueError(f"지원하지 않는 차트 유형: {chart_type}")
+    
+    # 파일 저장
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f'{chart_type.replace(".", "_")}_{timestamp}.png'
+    filepath = os.path.join(output_dir, filename)
+    
+    plt.tight_layout()
+    plt.savefig(filepath, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # 결과 반환
+    result = {
+        'success': True,
+        'chart_type': chart_type,
+        'chart_path': filepath,
+        'description': '${description}',
+        'data_summary': {
+            'total_rows': len(df),
+            'total_columns': len(df.columns),
+            'numeric_columns': len(df.select_dtypes(include=[np.number]).columns),
+            'categorical_columns': len(df.select_dtypes(include=['object']).columns)
+        }
+    }
+    
+    print(json.dumps(result, ensure_ascii=False, default=str))
+    
+except Exception as e:
+    error_result = {
+        'success': False,
+        'error': str(e),
+        'error_type': type(e).__name__
+    }
+    print(json.dumps(error_result, ensure_ascii=False))
+    raise
+`;
   }
 
+  // 결과 파싱 메서드들 완성
   parseAnalysisResult(result) {
     try {
-      const parsed = JSON.parse(result);
-      return parsed;
+      const parsed = JSON.parse(result.output);
+      return {
+        success: true,
+        result: parsed,
+        executionTime: result.executionTime || 0
+      };
     } catch (error) {
       return {
         success: false,
-        error: '분석 결과 파싱 실패',
-        raw_output: result
+        error: error.message,
+        rawOutput: result.output
       };
     }
   }
 
   parseMLResult(result) {
     try {
-      const parsed = JSON.parse(result);
-      return parsed;
+      const parsed = JSON.parse(result.output);
+      return {
+        success: true,
+        result: parsed,
+        executionTime: result.executionTime || 0
+      };
     } catch (error) {
       return {
         success: false,
-        error: 'ML 결과 파싱 실패',
-        raw_output: result
+        error: error.message,
+        rawOutput: result.output
       };
     }
   }
 
   parseDeepLearningResult(result) {
     try {
-      const parsed = JSON.parse(result);
-      return parsed;
+      const parsed = JSON.parse(result.output);
+      return {
+        success: true,
+        result: parsed,
+        executionTime: result.executionTime || 0
+      };
     } catch (error) {
       return {
         success: false,
-        error: '딥러닝 결과 파싱 실패',
-        raw_output: result
+        error: error.message,
+        rawOutput: result.output
       };
     }
   }
 
   parseVisualizationResult(result) {
     try {
-      const parsed = JSON.parse(result);
-      return parsed;
+      const parsed = JSON.parse(result.output);
+      return {
+        success: true,
+        result: parsed,
+        executionTime: result.executionTime || 0
+      };
     } catch (error) {
       return {
         success: false,
-        error: '시각화 결과 파싱 실패',
-        raw_output: result
+        error: error.message,
+        rawOutput: result.output
       };
     }
   }
 
-  async generateFinalResult(workflowResults) {
-    const { steps, intermediateResults, workflowName } = workflowResults;
-    
-    // 성공한 단계들만 필터링
-    const successfulSteps = steps.filter(step => step.success);
-    
-    if (successfulSteps.length === 0) {
-      return {
-        success: false,
-        message: '모든 단계가 실패했습니다.',
-        errors: steps.map(step => step.error).filter(Boolean)
-      };
-    }
-
-    // 최종 결과 요약 생성
-    const summary = {
-      success: true,
-      workflowName,
-      completedSteps: successfulSteps.length,
-      totalSteps: steps.length,
-      results: {},
-      visualizations: [],
-      reports: []
-    };
-
-    // 각 단계별 결과 수집
-    for (const step of successfulSteps) {
-      if (step.type === 'visualization' && step.result.chart_path) {
-        summary.visualizations.push({
-          type: step.method,
-          path: step.result.chart_path,
-          description: `${step.method} 시각화`
-        });
-      } else {
-        summary.results[`${step.type}_${step.method}`] = step.result;
-      }
-    }
-
-    // 요약 리포트 생성
-    summary.reports.push(await this.generateWorkflowReport(workflowResults));
-
-    return summary;
-  }
-
-  async generateWorkflowReport(workflowResults) {
-    const { workflowName, steps, executionTime } = workflowResults;
-    
-    let report = `# ${workflowName} 실행 보고서\n\n`;
-    report += `실행 시간: ${executionTime}ms\n`;
-    report += `완료된 단계: ${steps.filter(s => s.success).length}/${steps.length}\n\n`;
-    
-    report += `## 단계별 결과\n\n`;
-    
-    for (const step of steps) {
-      report += `### ${step.stepNumber}. ${step.type} - ${step.method}\n`;
-      report += `- 상태: ${step.success ? '성공' : '실패'}\n`;
-      report += `- 실행 시간: ${step.executionTime}ms\n`;
-      
-      if (step.success) {
-        report += `- 결과: 성공적으로 완료\n`;
-      } else {
-        report += `- 오류: ${step.error}\n`;
-      }
-      report += `\n`;
-    }
-    
-    return report;
-  }
-
-  async saveWorkflowResults(results) {
-    try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const sessionDir = `./results/${results.sessionId}_${timestamp.split('T')[0]}`;
-      
-      await fs.mkdir(sessionDir, { recursive: true });
-      
-      // 워크플로우 결과 저장
-      const resultFile = path.join(sessionDir, `workflow_result_${timestamp}.json`);
-      await fs.writeFile(resultFile, JSON.stringify(results, null, 2));
-      
-      // 요약 리포트 저장
-      if (results.finalResult && results.finalResult.reports) {
-        const reportFile = path.join(sessionDir, `workflow_report_${timestamp}.md`);
-        await fs.writeFile(reportFile, results.finalResult.reports[0]);
-      }
-      
-      this.logger.info('워크플로우 결과 저장 완료', {
-        sessionDir,
-        resultFile
-      });
-      
-    } catch (error) {
-      this.logger.error('워크플로우 결과 저장 실패:', error);
-    }
-  }
-
-  // 실행 중인 워크플로우 취소
-  cancelCurrentWorkflow() {
-    if (this.isExecuting) {
-      this.logger.info('워크플로우 취소 요청');
-      // Python 프로세스 종료 로직 추가 가능
-      this.isExecuting = false;
-      return true;
-    }
-    return false;
-  }
-
-  // 워크플로우 상태 확인
-  getWorkflowStatus() {
+  // 워크플로우 실행 상태 확인
+  getExecutionStatus() {
     return {
       isExecuting: this.isExecuting,
       currentSession: this.currentSession,
-      uptime: process.uptime()
+      startTime: this.currentSession ? new Date().toISOString() : null
     };
   }
-}
+
+  // 워크플로우 중단
+  async cancelWorkflow() {
+    if (!this.isExecuting) {
+      throw new Error('실행 중인 워크플로우가 없습니다.');
+    }
+
+    try {
+      // Python 프로세스 종료 시도
+      // 실제 구현에서는 실행 중인 프로세스를 추적하고 종료해야 함
+      
+      this.isExecuting = false;
+      this.currentSession = null;
+      
+      this.logger.info('워크플로우 실행이 취소되었습니다.');
+      
+      return {
+        success: true,
+        message: '워크플로우가 취소되었습니다.'
+      };
+    } catch (error) {
+      this.logger.error('워크플로우 취소 실패:', error);
+      throw error;
+    }
+  }
