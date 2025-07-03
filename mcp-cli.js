@@ -2,7 +2,6 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { spawn } from 'child_process';
 import readline from 'readline';
 import chalk from 'chalk';
 import { fileURLToPath } from 'url';
@@ -16,9 +15,7 @@ class MCPCLIClient {
   constructor() {
     this.client = null;
     this.transport = null;
-    this.serverProcess = null;
     this.isConnected = false;
-    this.currentSession = null;
     this.availableTools = [];
     this.conversationHistory = [];
     
@@ -37,10 +34,7 @@ class MCPCLIClient {
       // 필요한 디렉토리 생성
       await this.createDirectories();
       
-      // MCP 서버 시작
-      await this.startMCPServer();
-      
-      // MCP 클라이언트 연결
+      // StdioClientTransport를 사용하여 직접 서버 시작 및 연결
       await this.connectToServer();
       
       // 사용 가능한 도구 목록 가져오기
@@ -83,188 +77,44 @@ class MCPCLIClient {
     }
   }
 
-    async startMCPServer() {
-      return new Promise((resolve, reject) => {
-        console.log(chalk.yellow('🔧 MCP 서버 시작 중...'));
-        
-        const serverPath = path.join(__dirname, 'main.js');
-        console.log(chalk.gray(`서버 경로: ${serverPath}`));
-        
-        // MCP 서버 프로세스 시작 - stdio 설정 수정
-        this.serverProcess = spawn('node', [serverPath], {
-          stdio: ['pipe', 'pipe', 'pipe'], // stdin, stdout, stderr를 모두 pipe로 설정
-          cwd: __dirname,
-          env: process.env
-        });
-
-        let hasStarted = false;
-        
-        // 10초 타임아웃 설정
-        const timeout = setTimeout(() => {
-          if (!hasStarted) {
-            reject(new Error('MCP 서버 시작 타임아웃'));
-          }
-        }, 10000);
-
-        // 서버 출력 모니터링
-        this.serverProcess.stdout.on('data', (data) => {
-          const output = data.toString();
-          console.log(chalk.gray('서버 출력:'), output.trim());
-          
-          if (output.includes('ML MCP 서버가 시작되었습니다') ||
-              output.includes('서버가 시작되었습니다') ||
-              output.includes('Server started')) {
-            hasStarted = true;
-            clearTimeout(timeout);
-            console.log(chalk.green('✅ MCP 서버 시작 완료'));
-            // 서버가 완전히 준비될 때까지 잠시 대기
-            setTimeout(resolve, 2000);
-          }
-        });
-
-        // 에러 처리
-        this.serverProcess.stderr.on('data', (data) => {
-          const errorMsg = data.toString();
-          console.error(chalk.red('서버 오류:'), errorMsg.trim());
-          
-          if (errorMsg.includes('Error:') || errorMsg.includes('ERROR')) {
-            clearTimeout(timeout);
-            reject(new Error(`MCP 서버 시작 실패: ${errorMsg}`));
-          }
-        });
-
-        // 프로세스 종료 처리
-        this.serverProcess.on('close', (code) => {
-          if (code !== 0 && !hasStarted) {
-            clearTimeout(timeout);
-            reject(new Error(`MCP 서버 프로세스가 종료되었습니다. 종료 코드: ${code}`));
-          }
-        });
-
-        // 프로세스 오류 처리
-        this.serverProcess.on('error', (error) => {
-          clearTimeout(timeout);
-          reject(new Error(`MCP 서버 프로세스 오류: ${error.message}`));
-        });
-      });
-    }
-
-    async connectToServer() {
-      console.log(chalk.yellow('🔗 MCP 서버에 연결 중...'));
+  async connectToServer() {
+    console.log(chalk.yellow('🔗 MCP 서버 시작 및 연결 중...'));
+    
+    try {
+      const serverPath = path.join(__dirname, 'main.js');
+      console.log(chalk.gray(`서버 경로: ${serverPath}`));
       
-      try {
-        // 서버 프로세스가 실행 중인지 확인
-        if (!this.serverProcess || this.serverProcess.killed) {
-          throw new Error('MCP 서버 프로세스가 실행되지 않고 있습니다.');
+      // StdioClientTransport를 사용하여 서버 시작 및 연결
+      this.transport = new StdioClientTransport({
+        command: 'node',
+        args: [serverPath],
+        env: { ...process.env, NODE_ENV: 'production' }
+      });
+
+      // MCP 클라이언트 생성
+      this.client = new Client(
+        {
+          name: 'ml-mcp-cli',
+          version: '1.0.0'
+        },
+        {
+          capabilities: {}
         }
+      );
 
-        // stdout과 stdin이 제대로 설정되었는지 확인
-        if (!this.serverProcess.stdout || !this.serverProcess.stdin) {
-          throw new Error('MCP 서버 프로세스의 stdio가 올바르게 설정되지 않았습니다.');
-        }
+      // 서버에 연결
+      await this.client.connect(this.transport);
+      this.isConnected = true;
+      
+      console.log(chalk.green('✅ MCP 서버 연결 완료'));
+      
+    } catch (error) {
+      console.error(chalk.red('연결 실패 상세:'), error.message);
+      throw new Error(`MCP 서버 연결 실패: ${error.message}`);
+    }
+  }
 
-        // 이미 실행 중인 프로세스와 연결하는 올바른 방법
-        // StdioClientTransport를 직접 생성하지 않고, 기존 프로세스와 연결
-        const { SSEClientTransport } = await import('@modelcontextprotocol/sdk/client/sse.js').catch(() => ({}));
-        
-        // 실제로는 기존 프로세스의 스트림을 사용
-        this.transport = {
-          async start() {
-            return {
-              reader: this.serverProcess.stdout,
-              writer: this.serverProcess.stdin
-            };
-          },
-          async close() {
-            // 정리 작업
-          }
-        };
-
-        // 더 직접적인 접근법: 수동으로 JSON-RPC 통신 구현
-        this.client = {
-          async connect() {
-            // 연결 설정
-            return true;
-          },
-          
-          async listTools() {
-            return new Promise((resolve, reject) => {
-              const request = {
-                jsonrpc: '2.0',
-                id: Date.now(),
-                method: 'tools/list',
-                params: {}
-              };
-              
-              this.serverProcess.stdin.write(JSON.stringify(request) + '\n');
-              
-              const timeout = setTimeout(() => {
-                reject(new Error('도구 목록 요청 시간 초과'));
-              }, 5000);
-              
-              const onData = (data) => {
-                try {
-                  const response = JSON.parse(data.toString());
-                  if (response.id === request.id) {
-                    clearTimeout(timeout);
-                    this.serverProcess.stdout.off('data', onData);
-                    resolve(response.result);
-                  }
-                } catch (error) {
-                  // JSON 파싱 실패는 무시 (부분적 데이터일 수 있음)
-                }
-              };
-              
-              this.serverProcess.stdout.on('data', onData);
-            });
-          },
-          
-          async callTool(params) {
-            return new Promise((resolve, reject) => {
-              const request = {
-                jsonrpc: '2.0',
-                id: Date.now(),
-                method: 'tools/call',
-                params: params
-              };
-              
-              this.serverProcess.stdin.write(JSON.stringify(request) + '\n');
-              
-              const timeout = setTimeout(() => {
-                reject(new Error('도구 호출 시간 초과'));
-              }, 30000);
-              
-              const onData = (data) => {
-                try {
-                  const response = JSON.parse(data.toString());
-                  if (response.id === request.id) {
-                    clearTimeout(timeout);
-                    this.serverProcess.stdout.off('data', onData);
-                    
-                    if (response.error) {
-                      reject(new Error(response.error.message));
-                    } else {
-                      resolve(response.result);
-                    }
-                  }
-                } catch (error) {
-                  // JSON 파싱 실패는 무시
-                }
-              };
-              
-              this.serverProcess.stdout.on('data', onData);
-            });
-          }
-        };
-
-        this.isConnected = true;
-        console.log(chalk.green('✅ MCP 서버 연결 완료'));
-        
-      } catch (error) {
-        console.error(chalk.red('연결 실패 상세:'), error.message);
-        throw new Error(`MCP 서버 연결 실패: ${error.message}`);
-      }
-    }  async loadAvailableTools() {
+  async loadAvailableTools() {
     try {
       const response = await this.client.listTools();
       this.availableTools = response.tools || [];
@@ -279,76 +129,70 @@ class MCPCLIClient {
   showWelcomeMessage() {
     console.log(chalk.cyan('\n🤖 ML 분석 도우미에 오신 것을 환영합니다!'));
     console.log(chalk.gray('자연어로 명령을 입력하면 AI가 이해하고 실행합니다.'));
-    console.log(chalk.yellow('💡 도움말: "도움말" 또는 "help"'));
-    console.log(chalk.yellow('🔧 사용 가능한 도구: "도구 목록"'));
-    console.log(chalk.yellow('🚪 종료: "종료" 또는 "exit"'));
-    console.log(chalk.gray('─'.repeat(50)));
-    
-    // 사용 예시
-    console.log(chalk.blue('📖 사용 예시:'));
-    console.log(chalk.white('  • "data.csv 파일을 분석해주세요"'));
-    console.log(chalk.white('  • "이 데이터로 예측 모델을 만들어주세요"'));
-    console.log(chalk.white('  • "시각화 차트를 그려주세요"'));
-    console.log(chalk.white('  • "시스템 상태를 확인해주세요"'));
+    console.log(chalk.gray('도움말을 보려면 "도움말" 또는 "help"를 입력하세요.'));
+    console.log(chalk.gray('종료하려면 "종료" 또는 "exit"를 입력하세요.'));
     console.log(chalk.gray('─'.repeat(50)));
   }
 
   startConversation() {
-    this.currentSession = `session_${Date.now()}`;
-    this.rl.prompt();
-    
     this.rl.on('line', async (input) => {
       const userInput = input.trim();
-      
-      if (!userInput) {
+
+      if (userInput === '') {
         this.rl.prompt();
         return;
       }
-      
+
       // 종료 명령 처리
       if (this.isExitCommand(userInput)) {
-        await this.shutdown();
-        return;
+        console.log(chalk.green('👋 안녕히 가세요!'));
+        await this.cleanup();
+        process.exit(0);
       }
-      
+
       // 도움말 명령 처리
       if (this.isHelpCommand(userInput)) {
         this.showHelp();
         this.rl.prompt();
         return;
       }
-      
+
       // 도구 목록 명령 처리
       if (this.isToolsListCommand(userInput)) {
         this.showAvailableTools();
         this.rl.prompt();
         return;
       }
-      
-      // 대화 히스토리 명령 처리
+
+      // 히스토리 명령 처리
       if (this.isHistoryCommand(userInput)) {
         this.showConversationHistory();
         this.rl.prompt();
         return;
       }
-      
-      // 일반 명령 처리
+
+      // 사용자 입력 처리
       await this.processUserInput(userInput);
       this.rl.prompt();
     });
-    
+
     this.rl.on('close', async () => {
-      await this.shutdown();
+      console.log(chalk.yellow('\n프로그램을 종료합니다...'));
+      await this.cleanup();
+      process.exit(0);
     });
+
+    // 첫 번째 프롬프트 표시
+    this.rl.prompt();
   }
 
   isExitCommand(input) {
-    const exitCommands = ['exit', 'quit', '종료', 'bye', 'goodbye', 'q'];
+    const exitCommands = ['exit', 'quit', 'bye', '종료', '나가기', '그만'];
     return exitCommands.includes(input.toLowerCase());
   }
 
   isHelpCommand(input) {
-    const helpCommands = ['help', 'h', '도움말', '도움', '?'];
+    const helpCommands = ['help', 'h', '도움말', '도움', 'usage'];
     return helpCommands.includes(input.toLowerCase());
   }
 
@@ -442,30 +286,7 @@ class MCPCLIClient {
       
     } catch (error) {
       console.error(chalk.red('❌ 처리 중 오류 발생:'), error.message);
-      
-      // 연결 문제인 경우 재연결 시도
-      if (error.message.includes('연결') || error.message.includes('connection')) {
-        console.log(chalk.yellow('🔄 서버 재연결 시도 중...'));
-        try {
-          await this.reconnectToServer();
-          console.log(chalk.green('✅ 서버 재연결 성공'));
-        } catch (reconnectError) {
-          console.error(chalk.red('❌ 재연결 실패:'), reconnectError.message);
-        }
-      }
     }
-  }
-
-  async reconnectToServer() {
-    if (this.isConnected) {
-      await this.client.close();
-      this.isConnected = false;
-    }
-    
-    // 잠시 대기 후 재연결
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    await this.connectToServer();
-    await this.loadAvailableTools();
   }
 
   analyzeUserInput(userInput) {
@@ -591,173 +412,82 @@ class MCPCLIClient {
       console.log(chalk.gray('결과를 표시할 수 없습니다.'));
       return;
     }
-    
-    console.log(chalk.green('\n🤖 응답:'));
-    
-    if (result.content) {
-      for (const content of result.content) {
-        if (content.type === 'text') {
-          console.log(chalk.white(content.text));
-        } else if (content.type === 'image') {
-          console.log(chalk.cyan(`🖼️ 이미지: ${content.source || 'image'}`));
-        } else if (content.type === 'resource') {
-          console.log(chalk.cyan(`📄 리소스: ${content.resource.uri}`));
-        } else {
-          console.log(chalk.gray(`📄 ${content.type}: ${JSON.stringify(content, null, 2)}`));
-        }
-      }
-    } else if (result.result) {
-      // 결과가 result 프로퍼티에 있는 경우
-      console.log(chalk.white(JSON.stringify(result.result, null, 2)));
-    } else {
-      console.log(chalk.white(JSON.stringify(result, null, 2)));
-    }
-    
-    // 에러 표시
+
     if (result.isError) {
-      console.log(chalk.red('\n⚠️ 처리 중 오류가 발생했습니다.'));
+      console.log(chalk.red('❌ 오류 발생:'));
+    } else {
+      console.log(chalk.green('✅ 처리 완료:'));
     }
-    
-    // 결과 저장
-    if (result.shouldSave !== false) {
-      await this.saveResult(result);
+
+    if (result.content && Array.isArray(result.content)) {
+      result.content.forEach(item => {
+        if (item.type === 'text') {
+          console.log(chalk.white(item.text));
+        } else if (item.type === 'image') {
+          console.log(chalk.cyan(`🖼️ 이미지: ${item.url || '이미지 생성됨'}`));
+        } else if (item.type === 'json') {
+          console.log(chalk.gray(JSON.stringify(item.data, null, 2)));
+        }
+      });
+    } else {
+      console.log(chalk.gray('결과 내용을 표시할 수 없습니다.'));
     }
   }
 
-  async saveResult(result) {
-    try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const sessionDir = path.join('./results', `${this.currentSession}_${timestamp.split('T')[0]}`);
-      
-      await fs.mkdir(sessionDir, { recursive: true });
-      
-      const resultFile = path.join(sessionDir, `result_${timestamp}.json`);
-      await fs.writeFile(resultFile, JSON.stringify(result, null, 2));
-      
-      console.log(chalk.cyan(`💾 결과 저장됨: ${resultFile}`));
-      
-    } catch (error) {
-      console.warn(chalk.yellow('⚠️ 결과 저장 실패:'), error.message);
-    }
-  }
-
-  addToHistory(input, output, executionTime) {
+  addToHistory(input, output, duration) {
     const entry = {
       timestamp: Date.now(),
       input: input,
-      output: output ? JSON.stringify(output) : null,
-      executionTime: executionTime
+      output: output?.content?.[0]?.text || '응답 없음',
+      duration: duration
     };
-    
+
     this.conversationHistory.push(entry);
     
-    // 히스토리 크기 제한 (최대 100개)
+    // 최대 100개의 기록만 유지
     if (this.conversationHistory.length > 100) {
-      this.conversationHistory = this.conversationHistory.slice(-50);
-    }
-  }
-
-  async shutdown() {
-    console.log(chalk.cyan('\n👋 MCP CLI를 종료합니다...'));
-    
-    try {
-      // 대화 히스토리 저장
-      await this.saveConversationHistory();
-      
-      // MCP 클라이언트 연결 해제
-      if (this.client && this.isConnected) {
-        await this.client.close();
-        this.isConnected = false;
-      }
-      
-      // 서버 프로세스 종료
-      if (this.serverProcess && !this.serverProcess.killed) {
-        console.log(chalk.yellow('🔧 MCP 서버 종료 중...'));
-        
-        // 정상 종료 시그널 전송
-        this.serverProcess.kill('SIGTERM');
-        
-        // 강제 종료 대기
-        await new Promise((resolve) => {
-          const timeout = setTimeout(() => {
-            if (this.serverProcess && !this.serverProcess.killed) {
-              console.log(chalk.yellow('⚠️ 서버 강제 종료'));
-              this.serverProcess.kill('SIGKILL');
-            }
-            resolve();
-          }, 5000);
-          
-          this.serverProcess.on('exit', () => {
-            clearTimeout(timeout);
-            resolve();
-          });
-        });
-      }
-      
-      console.log(chalk.green('✅ 정상적으로 종료되었습니다.'));
-      
-    } catch (error) {
-      console.error(chalk.red('종료 중 오류:'), error.message);
-    }
-    
-    this.rl.close();
-    process.exit(0);
-  }
-
-  async saveConversationHistory() {
-    try {
-      if (this.conversationHistory.length > 0) {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const historyFile = path.join('./logs', `conversation_${this.currentSession}_${timestamp}.json`);
-        
-        const historyData = {
-          session: this.currentSession,
-          startTime: this.conversationHistory[0]?.timestamp,
-          endTime: Date.now(),
-          totalEntries: this.conversationHistory.length,
-          history: this.conversationHistory
-        };
-        
-        await fs.writeFile(historyFile, JSON.stringify(historyData, null, 2));
-        console.log(chalk.cyan(`💾 대화 기록 저장됨: ${historyFile}`));
-      }
-    } catch (error) {
-      console.warn(chalk.yellow('⚠️ 대화 기록 저장 실패:'), error.message);
+      this.conversationHistory.shift();
     }
   }
 
   async cleanup() {
-    await this.shutdown();
+    try {
+      if (this.client && this.isConnected) {
+        await this.client.close();
+      }
+      
+      if (this.transport) {
+        await this.transport.close();
+      }
+      
+      if (this.rl) {
+        this.rl.close();
+      }
+      
+    } catch (error) {
+      console.error('정리 중 오류:', error.message);
+    }
   }
 }
 
-// 메인 실행
+// 메인 실행 함수
 async function main() {
-  const cli = new MCPCLIClient();
+  const client = new MCPCLIClient();
   
-  // 시그널 핸들러
+  // 종료 시그널 처리
   process.on('SIGINT', async () => {
-    console.log(chalk.yellow('\n🔄 종료 시그널 수신...'));
-    await cli.cleanup();
+    console.log(chalk.yellow('\n👋 MCP CLI를 종료합니다...'));
+    await client.cleanup();
+    process.exit(0);
   });
-  
+
   process.on('SIGTERM', async () => {
-    console.log(chalk.yellow('\n🔄 종료 시그널 수신...'));
-    await cli.cleanup();
+    console.log(chalk.yellow('\n👋 MCP CLI를 종료합니다...'));
+    await client.cleanup();
+    process.exit(0);
   });
-  
-  await cli.initialize();
+
+  await client.initialize();
 }
-
-// 에러 핸들링
-process.on('unhandledRejection', (reason, promise) => {
-  console.error(chalk.red('Unhandled Rejection:'), reason);
-  process.exit(1);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error(chalk.red('Uncaught Exception:'), error);
-  process.exit(1);
-});
 
 main().catch(console.error);

@@ -276,8 +276,8 @@ class MLMCPServer {
       const transport = new StdioServerTransport();
       await this.server.connect(transport);
       
-      // 서버 시작 메시지 (CLI에서 감지할 수 있도록 stderr 사용)
-      console.error('ML MCP 서버가 시작되었습니다.');
+      // 서버 시작 메시지 (CLI에서 감지할 수 있도록 stdout 사용)
+      console.log('ML MCP 서버가 시작되었습니다.');
       
     } catch (error) {
       console.error('서버 시작 실패:', error.message);
