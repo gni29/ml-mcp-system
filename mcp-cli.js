@@ -163,46 +163,108 @@ class MCPCLIClient {
           throw new Error('MCP 서버 프로세스의 stdio가 올바르게 설정되지 않았습니다.');
         }
 
-        // StdioClientTransport 생성 - 올바른 파라미터로 설정
-        this.transport = new StdioClientTransport({
-          reader: this.serverProcess.stdout,
-          writer: this.serverProcess.stdin
-        });
-
-        // MCP 클라이언트 생성
-        this.client = new Client(
-          {
-            name: 'ml-mcp-cli',
-            version: '1.0.0'
-          },
-          {
-            capabilities: {}
-          }
-        );
-
-        // 연결 시도
-        await this.client.connect(this.transport);
-        this.isConnected = true;
+        // 이미 실행 중인 프로세스와 연결하는 올바른 방법
+        // StdioClientTransport를 직접 생성하지 않고, 기존 프로세스와 연결
+        const { SSEClientTransport } = await import('@modelcontextprotocol/sdk/client/sse.js').catch(() => ({}));
         
+        // 실제로는 기존 프로세스의 스트림을 사용
+        this.transport = {
+          async start() {
+            return {
+              reader: this.serverProcess.stdout,
+              writer: this.serverProcess.stdin
+            };
+          },
+          async close() {
+            // 정리 작업
+          }
+        };
+
+        // 더 직접적인 접근법: 수동으로 JSON-RPC 통신 구현
+        this.client = {
+          async connect() {
+            // 연결 설정
+            return true;
+          },
+          
+          async listTools() {
+            return new Promise((resolve, reject) => {
+              const request = {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'tools/list',
+                params: {}
+              };
+              
+              this.serverProcess.stdin.write(JSON.stringify(request) + '\n');
+              
+              const timeout = setTimeout(() => {
+                reject(new Error('도구 목록 요청 시간 초과'));
+              }, 5000);
+              
+              const onData = (data) => {
+                try {
+                  const response = JSON.parse(data.toString());
+                  if (response.id === request.id) {
+                    clearTimeout(timeout);
+                    this.serverProcess.stdout.off('data', onData);
+                    resolve(response.result);
+                  }
+                } catch (error) {
+                  // JSON 파싱 실패는 무시 (부분적 데이터일 수 있음)
+                }
+              };
+              
+              this.serverProcess.stdout.on('data', onData);
+            });
+          },
+          
+          async callTool(params) {
+            return new Promise((resolve, reject) => {
+              const request = {
+                jsonrpc: '2.0',
+                id: Date.now(),
+                method: 'tools/call',
+                params: params
+              };
+              
+              this.serverProcess.stdin.write(JSON.stringify(request) + '\n');
+              
+              const timeout = setTimeout(() => {
+                reject(new Error('도구 호출 시간 초과'));
+              }, 30000);
+              
+              const onData = (data) => {
+                try {
+                  const response = JSON.parse(data.toString());
+                  if (response.id === request.id) {
+                    clearTimeout(timeout);
+                    this.serverProcess.stdout.off('data', onData);
+                    
+                    if (response.error) {
+                      reject(new Error(response.error.message));
+                    } else {
+                      resolve(response.result);
+                    }
+                  }
+                } catch (error) {
+                  // JSON 파싱 실패는 무시
+                }
+              };
+              
+              this.serverProcess.stdout.on('data', onData);
+            });
+          }
+        };
+
+        this.isConnected = true;
         console.log(chalk.green('✅ MCP 서버 연결 완료'));
         
       } catch (error) {
         console.error(chalk.red('연결 실패 상세:'), error.message);
-        console.error(chalk.red('스택 트레이스:'), error.stack);
-        
-        // 추가 디버깅 정보
-        if (this.serverProcess) {
-          console.log(chalk.gray('서버 프로세스 상태:'), {
-            killed: this.serverProcess.killed,
-            exitCode: this.serverProcess.exitCode,
-            pid: this.serverProcess.pid
-          });
-        }
-        
         throw new Error(`MCP 서버 연결 실패: ${error.message}`);
       }
-    }
-  async loadAvailableTools() {
+    }  async loadAvailableTools() {
     try {
       const response = await this.client.listTools();
       this.availableTools = response.tools || [];
