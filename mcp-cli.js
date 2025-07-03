@@ -83,119 +83,125 @@ class MCPCLIClient {
     }
   }
 
-  async startMCPServer() {
-    return new Promise((resolve, reject) => {
-      console.log(chalk.yellow('🔧 MCP 서버 시작 중...'));
-      
-      const serverPath = path.join(__dirname, 'main.js');
-      console.log(chalk.gray(`서버 경로: ${serverPath}`));
-      
-      // MCP 서버 프로세스 시작
-      this.serverProcess = spawn('node', [serverPath], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, NODE_ENV: 'production' }
-      });
-
-      // 서버 시작 대기
-      let outputBuffer = '';
-      let hasStarted = false;
-      
-      const timeout = setTimeout(() => {
-        if (!hasStarted) {
-          reject(new Error('MCP 서버 시작 시간 초과 (30초)'));
-        }
-      }, 30000);
-
-      this.serverProcess.stdout.on('data', (data) => {
-        const output = data.toString();
-        outputBuffer += output;
+    async startMCPServer() {
+      return new Promise((resolve, reject) => {
+        console.log(chalk.yellow('🔧 MCP 서버 시작 중...'));
         
-        // 디버깅용 로그
-        if (process.env.DEBUG) {
-          console.log(chalk.gray(`서버 출력: ${output.trim()}`));
-        }
+        const serverPath = path.join(__dirname, 'main.js');
+        console.log(chalk.gray(`서버 경로: ${serverPath}`));
         
-        // 서버 시작 완료 메시지 확인
-        if (output.includes('ML MCP 서버가 시작되었습니다') && !hasStarted) {
-          hasStarted = true;
-          clearTimeout(timeout);
-          console.log(chalk.green('✅ MCP 서버 시작 완료'));
-          // 서버가 완전히 준비될 때까지 약간 대기
-          setTimeout(resolve, 2000);
-        } else if (output.includes('서버 시작') && !hasStarted) {
-          // 대안 시작 메시지 확인
-          hasStarted = true;
-          clearTimeout(timeout);
-          console.log(chalk.green('✅ MCP 서버 시작 완료'));
-          setTimeout(resolve, 2000);
-        }
-      });
+        // MCP 서버 프로세스 시작 - stdio 설정 수정
+        this.serverProcess = spawn('node', [serverPath], {
+          stdio: ['pipe', 'pipe', 'pipe'], // stdin, stdout, stderr를 모두 pipe로 설정
+          cwd: __dirname,
+          env: process.env
+        });
 
-      this.serverProcess.stderr.on('data', (data) => {
-        const errorMsg = data.toString();
+        let hasStarted = false;
         
-        if (process.env.DEBUG) {
-          console.error(chalk.red(`서버 오류: ${errorMsg.trim()}`));
-        }
-        
-        // 치명적인 오류 확인
-        if (errorMsg.includes('Error:') && !hasStarted) {
-          clearTimeout(timeout);
-          reject(new Error(`MCP 서버 시작 실패: ${errorMsg.trim()}`));
-        }
-      });
+        // 10초 타임아웃 설정
+        const timeout = setTimeout(() => {
+          if (!hasStarted) {
+            reject(new Error('MCP 서버 시작 타임아웃'));
+          }
+        }, 10000);
 
-      this.serverProcess.on('error', (error) => {
-        if (!hasStarted) {
+        // 서버 출력 모니터링
+        this.serverProcess.stdout.on('data', (data) => {
+          const output = data.toString();
+          console.log(chalk.gray('서버 출력:'), output.trim());
+          
+          if (output.includes('ML MCP 서버가 시작되었습니다') ||
+              output.includes('서버가 시작되었습니다') ||
+              output.includes('Server started')) {
+            hasStarted = true;
+            clearTimeout(timeout);
+            console.log(chalk.green('✅ MCP 서버 시작 완료'));
+            // 서버가 완전히 준비될 때까지 잠시 대기
+            setTimeout(resolve, 2000);
+          }
+        });
+
+        // 에러 처리
+        this.serverProcess.stderr.on('data', (data) => {
+          const errorMsg = data.toString();
+          console.error(chalk.red('서버 오류:'), errorMsg.trim());
+          
+          if (errorMsg.includes('Error:') || errorMsg.includes('ERROR')) {
+            clearTimeout(timeout);
+            reject(new Error(`MCP 서버 시작 실패: ${errorMsg}`));
+          }
+        });
+
+        // 프로세스 종료 처리
+        this.serverProcess.on('close', (code) => {
+          if (code !== 0 && !hasStarted) {
+            clearTimeout(timeout);
+            reject(new Error(`MCP 서버 프로세스가 종료되었습니다. 종료 코드: ${code}`));
+          }
+        });
+
+        // 프로세스 오류 처리
+        this.serverProcess.on('error', (error) => {
           clearTimeout(timeout);
           reject(new Error(`MCP 서버 프로세스 오류: ${error.message}`));
-        }
+        });
       });
-
-      this.serverProcess.on('exit', (code, signal) => {
-        if (!hasStarted) {
-          clearTimeout(timeout);
-          reject(new Error(`MCP 서버가 예상치 못하게 종료됨 (코드: ${code}, 신호: ${signal})`));
-        } else if (this.isConnected) {
-          console.log(chalk.yellow('⚠️ MCP 서버가 종료되었습니다.'));
-          this.isConnected = false;
-        }
-      });
-    });
-  }
-
-  async connectToServer() {
-    console.log(chalk.yellow('🔗 MCP 서버에 연결 중...'));
-    
-    try {
-      // StdioClientTransport를 올바르게 생성
-      this.transport = new StdioClientTransport({
-        reader: this.serverProcess.stdout,
-        writer: this.serverProcess.stdin
-      });
-
-      // MCP 클라이언트 생성
-      this.client = new Client(
-        {
-          name: 'ml-mcp-cli',
-          version: '1.0.0'
-        },
-        {
-          capabilities: {}
-        }
-      );
-
-      // 서버에 연결
-      await this.client.connect(this.transport);
-      this.isConnected = true;
-      
-      console.log(chalk.green('✅ MCP 서버 연결 완료'));
-      
-    } catch (error) {
-      throw new Error(`MCP 서버 연결 실패: ${error.message}`);
     }
-  }
 
+    async connectToServer() {
+      console.log(chalk.yellow('🔗 MCP 서버에 연결 중...'));
+      
+      try {
+        // 서버 프로세스가 실행 중인지 확인
+        if (!this.serverProcess || this.serverProcess.killed) {
+          throw new Error('MCP 서버 프로세스가 실행되지 않고 있습니다.');
+        }
+
+        // stdout과 stdin이 제대로 설정되었는지 확인
+        if (!this.serverProcess.stdout || !this.serverProcess.stdin) {
+          throw new Error('MCP 서버 프로세스의 stdio가 올바르게 설정되지 않았습니다.');
+        }
+
+        // StdioClientTransport 생성 - 올바른 파라미터로 설정
+        this.transport = new StdioClientTransport({
+          reader: this.serverProcess.stdout,
+          writer: this.serverProcess.stdin
+        });
+
+        // MCP 클라이언트 생성
+        this.client = new Client(
+          {
+            name: 'ml-mcp-cli',
+            version: '1.0.0'
+          },
+          {
+            capabilities: {}
+          }
+        );
+
+        // 연결 시도
+        await this.client.connect(this.transport);
+        this.isConnected = true;
+        
+        console.log(chalk.green('✅ MCP 서버 연결 완료'));
+        
+      } catch (error) {
+        console.error(chalk.red('연결 실패 상세:'), error.message);
+        console.error(chalk.red('스택 트레이스:'), error.stack);
+        
+        // 추가 디버깅 정보
+        if (this.serverProcess) {
+          console.log(chalk.gray('서버 프로세스 상태:'), {
+            killed: this.serverProcess.killed,
+            exitCode: this.serverProcess.exitCode,
+            pid: this.serverProcess.pid
+          });
+        }
+        
+        throw new Error(`MCP 서버 연결 실패: ${error.message}`);
+      }
+    }
   async loadAvailableTools() {
     try {
       const response = await this.client.listTools();
