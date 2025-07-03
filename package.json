@@ -14,11 +14,16 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.4.0",
     "axios": "^1.6.0",
-    "winston": "^3.11.0",
     "node-cache": "^5.1.2",
-    "systeminformation": "^5.21.0"
+    "systeminformation": "^5.21.0",
+    "winston": "^3.17.0"
   },
-  "keywords": ["mcp", "machine-learning", "data-analysis", "llm"],
+  "keywords": [
+    "mcp",
+    "machine-learning",
+    "data-analysis",
+    "llm"
+  ],
   "author": "Your Name",
   "license": "MIT"
 }
