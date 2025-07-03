@@ -1,0 +1,41 @@
+{
+  "model": "llama3.2:3b",
+  "endpoint": "http://localhost:11434",
+  "temperature": 0.1,
+  "max_tokens": 512,
+  "timeout": 30000,
+  "retry_attempts": 3,
+  "cache_ttl": 300000,
+  "optimization": {
+    "context_length": 4096,
+    "num_threads": 4,
+    "num_predict": 512,
+    "top_k": 10,
+    "top_p": 0.9,
+    "repeat_penalty": 1.1
+  },
+  "system_prompts": {
+    "routing": "당신은 사용자의 요청을 분석하여 적절한 처리 방법을 결정하는 라우팅 전문가입니다.",
+    "intent_analysis": "사용자의 요청을 분석하여 의도를 파악하고 필요한 작업을 결정해주세요.",
+    "error_handling": "오류가 발생했을 때 사용자에게 도움이 되는 대안을 제시해주세요."
+  },
+  "performance": {
+    "warmup_enabled": true,
+    "warmup_prompt": "Hello",
+    "max_concurrent_requests": 1,
+    "request_queue_size": 10,
+    "response_timeout": 30000
+  },
+  "logging": {
+    "level": "info",
+    "include_requests": true,
+    "include_responses": false,
+    "max_log_size": 100
+  },
+  "health_check": {
+    "enabled": true,
+    "interval": 60000,
+    "timeout": 5000,
+    "max_failures": 3
+  }
+}

@@ -1,89 +1,52 @@
 {
-  "general": {
-    "name": "일반 모드",
-    "description": "기본적인 대화 및 간단한 작업 처리",
-    "active_model": "router",
+  "data_analysis": {
+    "name": "데이터 분석 모드",
+    "description": "데이터 분석 및 시각화 전문 모드",
+    "active_model": "analyzer",
     "tools": [
-      "general_query",
-      "mode_switch",
-      "system_status",
-      "file_manager"
-    ],
-    "features": {
-      "natural_language_processing": true,
-      "basic_calculations": true,
-      "file_operations": true,
-      "system_monitoring": true,
-      "conversation": true
-    },
-    "limitations": {
-      "ml_operations": false,
-      "complex_analysis": false,
-      "model_training": false,
-      "deep_learning": false
-    },
-    "resource_usage": {
-      "memory_limit_mb": 2000,
-      "cpu_priority": "low",
-      "gpu_required": false
-    },
-    "auto_switch_triggers": [
-      "machine learning",
-      "데이터 분석",
-      "모델 훈련",
-      "시각화",
-      "clustering",
-      "regression",
-      "classification"
-    ]
-  },
-  "ml": {
-    "name": "머신러닝 모드",
-    "description": "데이터 분석, ML 모델 훈련 및 시각화 전문 모드",
-    "active_model": "processor",
-    "fallback_model": "router",
-    "tools": [
-      "analyze_data",
-      "train_model",
-      "visualize_data",
-      "python_executor",
       "data_loader",
-      "model_trainer",
-      "result_formatter",
-      "pipeline_executor"
+      "statistical_analyzer",
+      "visualization_generator",
+      "correlation_analyzer",
+      "outlier_detector",
+      "data_profiler"
     ],
     "features": {
-      "data_analysis": true,
       "statistical_analysis": true,
-      "machine_learning": true,
-      "deep_learning": true,
       "data_visualization": true,
-      "feature_engineering": true,
-      "model_evaluation": true,
-      "time_series_analysis": true,
-      "clustering": true,
-      "dimensionality_reduction": true,
-      "ensemble_methods": true,
-      "hyperparameter_tuning": true,
-      "cross_validation": true,
-      "pipeline_automation": true
+      "correlation_analysis": true,
+      "outlier_detection": true,
+      "data_profiling": true,
+      "automated_insights": true,
+      "export_reports": true,
+      "interactive_plots": true
     },
-    "supported_algorithms": {
-      "supervised": [
+    "algorithms": {
+      "statistics": [
+        "descriptive_stats",
+        "hypothesis_testing",
+        "regression_analysis",
+        "time_series_analysis",
+        "distribution_analysis"
+      ],
+      "clustering": [
+        "kmeans",
+        "hierarchical",
+        "dbscan",
+        "gaussian_mixture"
+      ],
+      "dimensionality_reduction": [
+        "pca",
+        "tsne",
+        "umap",
+        "lda"
+      ],
+      "machine_learning": [
         "linear_regression",
         "logistic_regression",
         "random_forest",
-        "xgboost",
         "svm",
-        "neural_networks"
-      ],
-      "unsupervised": [
-        "kmeans",
-        "dbscan",
-        "hierarchical_clustering",
-        "pca",
-        "tsne",
-        "umap"
+        "xgboost"
       ],
       "deep_learning": [
         "cnn",
@@ -145,7 +108,11 @@
       "documentation": true,
       "refactoring": true,
       "performance_optimization": true,
-      "security_analysis": true
+      "security_analysis": true,
+      "syntax_highlighting": true,
+      "auto_completion": true,
+      "error_detection": true,
+      "version_control": true
     },
     "supported_languages": [
       "python",
@@ -153,10 +120,15 @@
       "typescript",
       "java",
       "cpp",
+      "csharp",
+      "go",
+      "rust",
       "sql",
       "html",
       "css",
-      "bash"
+      "bash",
+      "powershell",
+      "r"
     ],
     "frameworks": [
       "pandas",
@@ -166,14 +138,29 @@
       "pytorch",
       "flask",
       "fastapi",
+      "django",
       "react",
-      "vue"
+      "vue",
+      "angular",
+      "nodejs",
+      "express"
     ],
+    "code_quality": {
+      "linting": true,
+      "formatting": true,
+      "complexity_analysis": true,
+      "coverage_analysis": true,
+      "security_scanning": true,
+      "dependency_checking": true
+    },
     "resource_usage": {
       "memory_limit_mb": 8000,
       "cpu_priority": "medium",
-      "gpu_required": false
-    }
+      "gpu_required": false,
+      "execution_timeout": 30000
+    },
+    "auto_save": true,
+    "backup_enabled": true
   },
   "deep_learning": {
     "name": "딥러닝 모드",
@@ -184,169 +171,466 @@
       "dl_trainer",
       "dl_evaluator",
       "gpu_monitor",
-      "tensorboard_integration"
+      "tensorboard_integration",
+      "model_optimizer",
+      "hyperparameter_tuner"
     ],
     "features": {
       "model_architecture_design": true,
-      "transfer_learning": true,
+      "automated_training": true,
       "hyperparameter_optimization": true,
+      "model_evaluation": true,
+      "transfer_learning": true,
       "distributed_training": true,
       "model_deployment": true,
-      "performance_monitoring": true
+      "experiment_tracking": true,
+      "model_versioning": true,
+      "performance_profiling": true,
+      "gradient_analysis": true,
+      "layer_visualization": true
     },
-    "supported_domains": {
-      "computer_vision": [
-        "image_classification",
-        "object_detection",
-        "semantic_segmentation",
-        "face_recognition",
-        "style_transfer"
-      ],
-      "nlp": [
-        "text_classification",
-        "sentiment_analysis",
-        "named_entity_recognition",
-        "machine_translation",
-        "question_answering"
-      ],
-      "time_series": [
-        "forecasting",
-        "anomaly_detection",
-        "pattern_recognition"
-      ]
-    },
-    "frameworks": [
+    "supported_frameworks": [
       "tensorflow",
       "pytorch",
       "keras",
+      "jax",
       "huggingface",
-      "opencv",
-      "spacy"
+      "onnx"
+    ],
+    "model_types": [
+      "cnn",
+      "rnn",
+      "lstm",
+      "gru",
+      "transformer",
+      "bert",
+      "gpt",
+      "gan",
+      "vae",
+      "autoencoder",
+      "resnet",
+      "mobilenet",
+      "efficientnet"
+    ],
+    "training_strategies": [
+      "supervised",
+      "unsupervised",
+      "semi_supervised",
+      "reinforcement_learning",
+      "transfer_learning",
+      "few_shot_learning",
+      "meta_learning"
+    ],
+    "optimization_algorithms": [
+      "adam",
+      "sgd",
+      "rmsprop",
+      "adagrad",
+      "adadelta",
+      "adamw",
+      "lookahead"
     ],
     "resource_usage": {
       "memory_limit_mb": 32000,
       "cpu_priority": "high",
       "gpu_required": true,
-      "gpu_memory_mb": 8000,
+      "gpu_memory_gb": 8,
       "parallel_processing": true,
       "distributed_training": true
     },
-    "training_config": {
-      "max_epochs": 1000,
-      "early_stopping": true,
-      "checkpoint_saving": true,
-      "tensorboard_logging": true,
-      "model_versioning": true
+    "monitoring": {
+      "training_metrics": true,
+      "resource_usage": true,
+      "model_performance": true,
+      "experiment_logging": true
+    },
+    "auto_checkpoint": true,
+    "early_stopping": true
+  },
+  "nlp": {
+    "name": "자연어 처리 모드",
+    "description": "텍스트 분석 및 자연어 처리 전문 모드",
+    "active_model": "nlp_processor",
+    "tools": [
+      "text_preprocessor",
+      "tokenizer",
+      "sentiment_analyzer",
+      "named_entity_recognizer",
+      "text_classifier",
+      "language_detector",
+      "translation_engine"
+    ],
+    "features": {
+      "text_preprocessing": true,
+      "tokenization": true,
+      "pos_tagging": true,
+      "named_entity_recognition": true,
+      "sentiment_analysis": true,
+      "text_classification": true,
+      "language_detection": true,
+      "text_summarization": true,
+      "keyword_extraction": true,
+      "topic_modeling": true,
+      "text_similarity": true,
+      "machine_translation": true
+    },
+    "supported_languages": [
+      "korean",
+      "english",
+      "chinese",
+      "japanese",
+      "spanish",
+      "french",
+      "german",
+      "russian",
+      "arabic",
+      "hindi"
+    ],
+    "nlp_models": [
+      "bert",
+      "gpt",
+      "roberta",
+      "electra",
+      "xlm",
+      "t5",
+      "bart",
+      "kobert",
+      "kogpt2"
+    ],
+    "text_processing": {
+      "cleaning": true,
+      "normalization": true,
+      "stemming": true,
+      "lemmatization": true,
+      "stopword_removal": true,
+      "spell_checking": true
+    },
+    "resource_usage": {
+      "memory_limit_mb": 12000,
+      "cpu_priority": "medium",
+      "gpu_preferred": true,
+      "model_cache_size": 2000
+    },
+    "output_formats": [
+      "json",
+      "csv",
+      "txt",
+      "html",
+      "xml"
+    ]
+  },
+  "computer_vision": {
+    "name": "컴퓨터 비전 모드",
+    "description": "이미지 및 비디오 처리 전문 모드",
+    "active_model": "cv_processor",
+    "tools": [
+      "image_processor",
+      "object_detector",
+      "face_recognizer",
+      "image_classifier",
+      "video_analyzer",
+      "ocr_engine",
+      "image_generator"
+    ],
+    "features": {
+      "image_processing": true,
+      "object_detection": true,
+      "face_recognition": true,
+      "image_classification": true,
+      "semantic_segmentation": true,
+      "optical_character_recognition": true,
+      "image_generation": true,
+      "video_analysis": true,
+      "pose_estimation": true,
+      "image_enhancement": true,
+      "style_transfer": true,
+      "anomaly_detection": true
+    },
+    "supported_formats": [
+      "jpg",
+      "jpeg",
+      "png",
+      "gif",
+      "bmp",
+      "tiff",
+      "webp",
+      "svg",
+      "mp4",
+      "avi",
+      "mov",
+      "wmv"
+    ],
+    "cv_models": [
+      "yolo",
+      "rcnn",
+      "ssd",
+      "mobilenet",
+      "resnet",
+      "efficientdet",
+      "detectron2",
+      "openpose"
+    ],
+    "processing_operations": [
+      "resize",
+      "crop",
+      "rotate",
+      "flip",
+      "blur",
+      "sharpen",
+      "noise_reduction",
+      "color_adjustment",
+      "histogram_equalization",
+      "edge_detection"
+    ],
+    "resource_usage": {
+      "memory_limit_mb": 20000,
+      "cpu_priority": "high",
+      "gpu_required": true,
+      "gpu_memory_gb": 6,
+      "parallel_processing": true
+    },
+    "batch_processing": true,
+    "real_time_processing": true
+  },
+  "time_series": {
+    "name": "시계열 분석 모드",
+    "description": "시계열 데이터 분석 및 예측 전문 모드",
+    "active_model": "ts_analyzer",
+    "tools": [
+      "ts_decomposer",
+      "trend_analyzer",
+      "seasonality_detector",
+      "anomaly_detector",
+      "forecaster",
+      "change_point_detector",
+      "correlation_analyzer"
+    ],
+    "features": {
+      "time_series_decomposition": true,
+      "trend_analysis": true,
+      "seasonality_detection": true,
+      "anomaly_detection": true,
+      "forecasting": true,
+      "change_point_detection": true,
+      "correlation_analysis": true,
+      "stationarity_testing": true,
+      "feature_engineering": true,
+      "model_selection": true,
+      "backtesting": true,
+      "confidence_intervals": true
+    },
+    "forecasting_models": [
+      "arima",
+      "sarima",
+      "lstm",
+      "gru",
+      "prophet",
+      "exponential_smoothing",
+      "var",
+      "vecm",
+      "xgboost",
+      "lightgbm"
+    ],
+    "preprocessing": {
+      "interpolation": true,
+      "smoothing": true,
+      "differencing": true,
+      "scaling": true,
+      "windowing": true,
+      "resampling": true
+    },
+    "evaluation_metrics": [
+      "mae",
+      "mse",
+      "rmse",
+      "mape",
+      "smape",
+      "mase",
+      "aic",
+      "bic"
+    ],
+    "resource_usage": {
+      "memory_limit_mb": 10000,
+      "cpu_priority": "medium",
+      "gpu_preferred": false,
+      "parallel_processing": true
+    },
+    "visualization": {
+      "time_plots": true,
+      "seasonal_plots": true,
+      "forecast_plots": true,
+      "residual_plots": true,
+      "correlation_plots": true
     }
   },
-  "mode_switching": {
-    "auto_switch": {
+  "iot_analytics": {
+    "name": "IoT 분석 모드",
+    "description": "IoT 데이터 수집 및 분석 전문 모드",
+    "active_model": "iot_analyzer",
+    "tools": [
+      "sensor_data_collector",
+      "real_time_processor",
+      "edge_computing_manager",
+      "device_monitor",
+      "data_aggregator",
+      "alert_manager",
+      "dashboard_generator"
+    ],
+    "features": {
+      "real_time_data_processing": true,
+      "sensor_data_analysis": true,
+      "device_monitoring": true,
+      "predictive_maintenance": true,
+      "anomaly_detection": true,
+      "edge_computing": true,
+      "data_aggregation": true,
+      "alert_system": true,
+      "dashboard_creation": true,
+      "energy_monitoring": true,
+      "environmental_monitoring": true,
+      "asset_tracking": true
+    },
+    "supported_protocols": [
+      "mqtt",
+      "coap",
+      "http",
+      "websocket",
+      "tcp",
+      "udp",
+      "bluetooth",
+      "zigbee",
+      "lora",
+      "wifi"
+    ],
+    "sensor_types": [
+      "temperature",
+      "humidity",
+      "pressure",
+      "accelerometer",
+      "gyroscope",
+      "magnetometer",
+      "gps",
+      "proximity",
+      "light",
+      "sound",
+      "gas",
+      "flow"
+    ],
+    "data_processing": {
+      "filtering": true,
+      "aggregation": true,
+      "interpolation": true,
+      "compression": true,
+      "encryption": true,
+      "validation": true
+    },
+    "resource_usage": {
+      "memory_limit_mb": 6000,
+      "cpu_priority": "low",
+      "gpu_required": false,
+      "real_time_processing": true,
+      "edge_processing": true
+    },
+    "storage": {
+      "time_series_db": true,
+      "data_retention": true,
+      "compression": true,
+      "backup": true
+    },
+    "alerts": {
+      "threshold_based": true,
+      "ml_based": true,
+      "custom_rules": true,
+      "notification_channels": ["email", "sms", "webhook", "slack"]
+    }
+  },
+  "general": {
+    "name": "일반 모드",
+    "description": "범용 AI 어시스턴트 모드",
+    "active_model": "general_assistant",
+    "tools": [
+      "query_analyzer",
+      "file_manager",
+      "web_search",
+      "calculator",
+      "text_editor",
+      "translator",
+      "summarizer"
+    ],
+    "features": {
+      "general_conversation": true,
+      "question_answering": true,
+      "text_generation": true,
+      "language_translation": true,
+      "summarization": true,
+      "creative_writing": true,
+      "problem_solving": true,
+      "information_retrieval": true,
+      "task_planning": true,
+      "code_explanation": true,
+      "math_solving": true,
+      "research_assistance": true
+    },
+    "capabilities": [
+      "multilingual_support",
+      "context_awareness",
+      "follow_up_questions",
+      "explanation_requests",
+      "fact_checking",
+      "opinion_analysis",
+      "recommendation_system"
+    ],
+    "resource_usage": {
+      "memory_limit_mb": 4000,
+      "cpu_priority": "low",
+      "gpu_required": false,
+      "response_timeout": 30000
+    },
+    "interaction_modes": [
+      "conversational",
+      "instructional",
+      "creative",
+      "analytical",
+      "educational"
+    ],
+    "output_formats": [
+      "text",
+      "markdown",
+      "html",
+      "json",
+      "structured_data"
+    ]
+  },
+  "config": {
+    "default_mode": "general",
+    "auto_switch": true,
+    "mode_detection": {
       "enabled": true,
       "confidence_threshold": 0.8,
-      "keywords": {
-        "ml": [
-          "분석", "analyze", "데이터", "data", "모델", "model",
-          "훈련", "training", "예측", "predict", "분류", "classification",
-          "회귀", "regression", "클러스터", "cluster", "시각화", "visualization"
-        ],
-        "coding": [
-          "코드", "code", "함수", "function", "클래스", "class",
-          "버그", "bug", "디버그", "debug", "테스트", "test",
-          "리팩토링", "refactor", "최적화", "optimize"
-        ],
-        "deep_learning": [
-          "딥러닝", "deep learning", "신경망", "neural network",
-          "cnn", "rnn", "lstm", "transformer", "pytorch", "tensorflow"
-        ]
-      }
+      "fallback_mode": "general"
     },
-    "manual_switch": {
-      "confirmation_required": false,
-      "preserve_context": true,
-      "transition_time_ms": 2000
+    "performance": {
+      "max_concurrent_modes": 2,
+      "resource_monitoring": true,
+      "auto_optimization": true,
+      "memory_cleanup": true
     },
-    "fallback": {
-      "enabled": true,
-      "fallback_mode": "general",
-      "conditions": [
-        "resource_exhaustion",
-        "model_failure",
-        "timeout"
-      ]
-    }
-  },
-  "resource_management": {
-    "memory_monitoring": {
-      "enabled": true,
-      "warning_threshold_percent": 80,
-      "critical_threshold_percent": 95,
-      "auto_cleanup": true
+    "logging": {
+      "level": "info",
+      "file_logging": true,
+      "performance_logging": true,
+      "error_tracking": true
     },
-    "model_lifecycle": {
-      "preload_models": ["router"],
-      "lazy_load_models": ["processor"],
-      "auto_unload": {
-        "enabled": true,
-        "idle_timeout_ms": 600000,
-        "memory_pressure_threshold": 0.8
-      }
+    "security": {
+      "input_validation": true,
+      "output_filtering": true,
+      "rate_limiting": true,
+      "access_control": true
     },
-    "performance_optimization": {
-      "cache_enabled": true,
-      "parallel_processing": true,
-      "batch_processing": true,
-      "result_streaming": true
-    }
-  },
-  "security": {
-    "sandboxing": {
-      "python_execution": true,
-      "file_access_restrictions": true,
-      "network_access_control": true
-    },
-    "data_privacy": {
-      "local_processing_only": true,
-      "no_external_apis": true,
-      "automatic_data_cleanup": true,
-      "session_isolation": true
-    },
-    "input_validation": {
-      "enabled": true,
-      "sanitize_code": true,
-      "validate_file_paths": true,
-      "prevent_command_injection": true
-    }
-  },
-  "logging": {
-    "level": "info",
-    "file_logging": true,
-    "console_logging": true,
-    "performance_logging": true,
-    "error_tracking": true,
-    "log_rotation": {
-      "enabled": true,
-      "max_size_mb": 100,
-      "backup_count": 5
-    }
-  },
-  "ui_preferences": {
-    "default_theme": "dark",
-    "language": "ko",
-    "response_format": "comprehensive",
-    "show_progress": true,
-    "auto_save_results": true,
-    "result_preview": true
-  },
-  "experimental": {
-    "features": {
-      "voice_interface": false,
-      "real_time_collaboration": false,
-      "advanced_model_routing": true,
-      "automated_workflow_generation": true
-    },
-    "beta_models": {
-      "enabled": false,
-      "allowed_models": []
+    "updates": {
+      "auto_update": false,
+      "update_channel": "stable",
+      "backup_before_update": true
     }
   }
 }

@@ -1,77 +1,49 @@
-// parsers/query-analyzer.js
-import { Logger } from '../utils/logger.js';
+import { Logger } from '../../utils/logger.js';
 import fs from 'fs/promises';
 import path from 'path';
 
 export class QueryAnalyzer {
   constructor() {
     this.logger = new Logger();
-    this.filePatterns = this.initializeFilePatterns();
-    this.dataTypePatterns = this.initializeDataTypePatterns();
-    this.parameterPatterns = this.initializeParameterPatterns();
-  }
-
-  initializeFilePatterns() {
-    return {
+    this.patterns = {
+      // 파일 참조 패턴
+      file_patterns: {
+        explicit: /(?:파일|file|데이터)\s*[:=]?\s*['"]([^'"]+)['"]?/gi,
+        implicit: /\.(?:csv|xlsx|json|txt|parquet|h5)(?:\s|$)/gi,
+        path: /(?:\.\/|\/|\\)([^\\\/\s]+\.(?:csv|xlsx|json|txt|parquet|h5))/gi
+      },
+      
+      // 컬럼 참조 패턴
+      column_patterns: {
+        explicit: /(?:컬럼|column|필드|field)\s*[:=]?\s*['"]([^'"]+)['"]?/gi,
+        target: /(?:목표|target|타겟|결과|결과값)\s*[:=]?\s*['"]([^'"]+)['"]?/gi,
+        features: /(?:특성|feature|변수|입력)\s*[:=]?\s*\[([^\]]+)\]/gi
+      },
+      
+      // 숫자 패턴
+      numeric_patterns: {
+        integer: /\b(\d+)\b/g,
+        float: /\b(\d+\.\d+)\b/g,
+        percentage: /\b(\d+(?:\.\d+)?)\s*%/g,
+        range: /\b(\d+(?:\.\d+)?)\s*[-~]\s*(\d+(?:\.\d+)?)/g
+      },
+      
+      // 파라미터 패턴
+      parameter_patterns: {
+        model: /(?:모델|model)\s*[:=]?\s*['"]([^'"]+)['"]?/gi,
+        algorithm: /(?:알고리즘|algorithm)\s*[:=]?\s*['"]([^'"]+)['"]?/gi,
+        method: /(?:방법|method)\s*[:=]?\s*['"]([^'"]+)['"]?/gi
+      }
+    };
+    
+    this.filePatterns = {
       csv: /\.csv$/i,
-      excel: /\.(xlsx?|xls)$/i,
+      excel: /\.xlsx?$/i,
       json: /\.json$/i,
       text: /\.txt$/i,
-      image: /\.(png|jpg|jpeg|gif|bmp|tiff)$/i,
+      image: /\.(jpg|jpeg|png|gif|bmp|tiff)$/i,
       parquet: /\.parquet$/i,
       hdf5: /\.h5$/i
-    };
-  }
-
-  initializeDataTypePatterns() {
-    return {
-      file_references: {
-        explicit: /([a-zA-Z0-9_-]+\.(csv|xlsx?|json|txt|png|jpg|jpeg))/gi,
-        implicit: /(이 파일|현재 파일|업로드된 파일|데이터 파일)/gi,
-        path_like: /([\.\/]?[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+)/gi
-      },
-      column_references: {
-        explicit: /([a-zA-Z0-9_]+)\s*(컬럼|열|변수|피처|feature|column)/gi,
-        target: /(타겟|target|목표|예측할|분류할)\s*([a-zA-Z0-9_]+)/gi,
-        feature_list: /\[([a-zA-Z0-9_,\s]+)\]/gi
-      },
-      numeric_values: {
-        integers: /\b(\d+)\b/g,
-        floats: /\b(\d+\.\d+)\b/g,
-        percentages: /(\d+(?:\.\d+)?)\s*%/g,
-        ranges: /(\d+)\s*[-~]\s*(\d+)/g
-      },
-      time_references: {
-        dates: /\b(\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4})\b/g,
-        periods: /(지난|최근|이번|다음)\s*(\d+)\s*(일|주|월|년|day|week|month|year)/gi,
-        time_units: /(시간|분|초|hour|minute|second)/gi
-      }
-    };
-  }
-
-  initializeParameterPatterns() {
-    return {
-      model_parameters: {
-        epochs: /epoch[s]?\s*[:=]?\s*(\d+)/gi,
-        batch_size: /(batch[_\s]?size|배치[_\s]?사이즈)\s*[:=]?\s*(\d+)/gi,
-        learning_rate: /(learning[_\s]?rate|학습률)\s*[:=]?\s*(\d+\.?\d*)/gi,
-        n_clusters: /(n[_\s]?clusters?|클러스터\s*수)\s*[:=]?\s*(\d+)/gi,
-        n_components: /(n[_\s]?components?|컴포넌트\s*수|주성분\s*수)\s*[:=]?\s*(\d+)/gi,
-        test_size: /(test[_\s]?size|테스트\s*비율)\s*[:=]?\s*(\d+\.?\d*)/gi,
-        random_state: /(random[_\s]?state|시드)\s*[:=]?\s*(\d+)/gi
-      },
-      visualization_parameters: {
-        figsize: /(figsize|크기)\s*[:=]?\s*\[?(\d+),?\s*(\d+)\]?/gi,
-        color: /(color|색상|컬러)\s*[:=]?\s*([a-zA-Z0-9#]+)/gi,
-        alpha: /(alpha|투명도)\s*[:=]?\s*(\d+\.?\d*)/gi,
-        title: /(title|제목)\s*[:=]?\s*['"]([^'"]+)['"]/gi
-      },
-      data_parameters: {
-        separator: /(sep|separator|구분자)\s*[:=]?\s*['"]([^'"]+)['"]/gi,
-        encoding: /(encoding|인코딩)\s*[:=]?\s*['"]([^'"]+)['"]/gi,
-        header: /(header|헤더)\s*[:=]?\s*(\d+|None|True|False)/gi,
-        index_col: /(index[_\s]?col|인덱스\s*컬럼)\s*[:=]?\s*(\d+|None)/gi
-      }
     };
   }
 
@@ -80,31 +52,22 @@ export class QueryAnalyzer {
       const analysis = {
         original_query: query,
         timestamp: new Date().toISOString(),
-        
-        // 기본 분석
         file_references: this.extractFileReferences(query),
         column_references: this.extractColumnReferences(query),
         numeric_values: this.extractNumericValues(query),
-        time_references: this.extractTimeReferences(query),
-        
-        // 파라미터 분석
         parameters: this.extractParameters(query),
-        
-        // 데이터 요구사항 분석
-        data_requirements: await this.analyzeDataRequirements(query),
-        
-        // 자동 파일 감지
+        data_requirements: this.analyzeDataRequirements(query),
         detected_files: await this.detectAvailableFiles(),
-        
-        // 컨텍스트 분석
         context: this.analyzeContext(query),
-        
-        // 검증
-        validation: this.validateQuery(query)
+        validation: this.validateQuery(query),
+        resolved_references: {},
+        suggested_corrections: []
       };
 
-      // 분석 결과 후처리
+      // 참조 해결
       analysis.resolved_references = await this.resolveReferences(analysis);
+      
+      // 수정 제안
       analysis.suggested_corrections = this.suggestCorrections(analysis);
 
       return analysis;
@@ -122,31 +85,35 @@ export class QueryAnalyzer {
     };
 
     // 명시적 파일 참조
-    const explicitMatches = query.match(this.dataTypePatterns.file_references.explicit);
-    if (explicitMatches) {
-      references.explicit = explicitMatches.map(match => ({
-        filename: match,
-        extension: path.extname(match).toLowerCase(),
-        type: this.determineFileType(match)
-      }));
+    let match;
+    while ((match = this.patterns.file_patterns.explicit.exec(query)) !== null) {
+      references.explicit.push({
+        filename: match[1],
+        position: match.index,
+        confidence: 0.9
+      });
     }
 
-    // 암시적 파일 참조
-    const implicitMatches = query.match(this.dataTypePatterns.file_references.implicit);
-    if (implicitMatches) {
-      references.implicit = implicitMatches.map(match => ({
-        phrase: match,
-        type: 'implicit'
-      }));
+    // 암시적 파일 참조 (확장자 기반)
+    this.patterns.file_patterns.implicit.lastIndex = 0;
+    while ((match = this.patterns.file_patterns.implicit.exec(query)) !== null) {
+      const extension = match[0].trim();
+      references.implicit.push({
+        extension: extension,
+        position: match.index,
+        confidence: 0.6
+      });
     }
 
-    // 경로 형태 참조
-    const pathMatches = query.match(this.dataTypePatterns.file_references.path_like);
-    if (pathMatches) {
-      references.paths = pathMatches.map(match => ({
-        path: match,
-        type: 'path'
-      }));
+    // 경로 참조
+    this.patterns.file_patterns.path.lastIndex = 0;
+    while ((match = this.patterns.file_patterns.path.exec(query)) !== null) {
+      references.paths.push({
+        path: match[0],
+        filename: match[1],
+        position: match.index,
+        confidence: 0.8
+      });
     }
 
     return references;
@@ -160,25 +127,35 @@ export class QueryAnalyzer {
     };
 
     // 명시적 컬럼 참조
-    const explicitMatches = [...query.matchAll(this.dataTypePatterns.column_references.explicit)];
-    references.explicit = explicitMatches.map(match => ({
-      column: match[1],
-      context: match[0]
-    }));
+    let match;
+    while ((match = this.patterns.column_patterns.explicit.exec(query)) !== null) {
+      references.explicit.push({
+        column: match[1],
+        position: match.index,
+        confidence: 0.9
+      });
+    }
 
-    // 타겟 변수 참조
-    const targetMatches = [...query.matchAll(this.dataTypePatterns.column_references.target)];
-    references.target = targetMatches.map(match => ({
-      column: match[2],
-      context: match[0]
-    }));
+    // 타겟 컬럼
+    this.patterns.column_patterns.target.lastIndex = 0;
+    while ((match = this.patterns.column_patterns.target.exec(query)) !== null) {
+      references.target.push({
+        column: match[1],
+        position: match.index,
+        confidence: 0.8
+      });
+    }
 
-    // 피처 리스트
-    const featureMatches = [...query.matchAll(this.dataTypePatterns.column_references.feature_list)];
-    references.feature_lists = featureMatches.map(match => ({
-      features: match[1].split(',').map(f => f.trim()),
-      context: match[0]
-    }));
+    // 특성 리스트
+    this.patterns.column_patterns.features.lastIndex = 0;
+    while ((match = this.patterns.column_patterns.features.exec(query)) !== null) {
+      const features = match[1].split(',').map(f => f.trim().replace(/['"]/g, ''));
+      references.feature_lists.push({
+        features: features,
+        position: match.index,
+        confidence: 0.7
+      });
+    }
 
     return references;
   }
@@ -192,55 +169,47 @@ export class QueryAnalyzer {
     };
 
     // 정수
-    const intMatches = [...query.matchAll(this.dataTypePatterns.numeric_values.integers)];
-    values.integers = intMatches.map(match => parseInt(match[1]));
+    let match;
+    while ((match = this.patterns.numeric_patterns.integer.exec(query)) !== null) {
+      values.integers.push({
+        value: parseInt(match[1]),
+        position: match.index,
+        raw: match[1]
+      });
+    }
 
     // 실수
-    const floatMatches = [...query.matchAll(this.dataTypePatterns.numeric_values.floats)];
-    values.floats = floatMatches.map(match => parseFloat(match[1]));
+    this.patterns.numeric_patterns.float.lastIndex = 0;
+    while ((match = this.patterns.numeric_patterns.float.exec(query)) !== null) {
+      values.floats.push({
+        value: parseFloat(match[1]),
+        position: match.index,
+        raw: match[1]
+      });
+    }
 
     // 백분율
-    const percentMatches = [...query.matchAll(this.dataTypePatterns.numeric_values.percentages)];
-    values.percentages = percentMatches.map(match => parseFloat(match[1]));
+    this.patterns.numeric_patterns.percentage.lastIndex = 0;
+    while ((match = this.patterns.numeric_patterns.percentage.exec(query)) !== null) {
+      values.percentages.push({
+        value: parseFloat(match[1]),
+        position: match.index,
+        raw: match[1]
+      });
+    }
 
     // 범위
-    const rangeMatches = [...query.matchAll(this.dataTypePatterns.numeric_values.ranges)];
-    values.ranges = rangeMatches.map(match => ({
-      min: parseInt(match[1]),
-      max: parseInt(match[2])
-    }));
+    this.patterns.numeric_patterns.range.lastIndex = 0;
+    while ((match = this.patterns.numeric_patterns.range.exec(query)) !== null) {
+      values.ranges.push({
+        min: parseFloat(match[1]),
+        max: parseFloat(match[2]),
+        position: match.index,
+        raw: match[0]
+      });
+    }
 
     return values;
-  }
-
-  extractTimeReferences(query) {
-    const references = {
-      dates: [],
-      periods: [],
-      time_units: []
-    };
-
-    // 날짜
-    const dateMatches = [...query.matchAll(this.dataTypePatterns.time_references.dates)];
-    references.dates = dateMatches.map(match => ({
-      date: match[1],
-      parsed: new Date(match[1])
-    }));
-
-    // 기간
-    const periodMatches = [...query.matchAll(this.dataTypePatterns.time_references.periods)];
-    references.periods = periodMatches.map(match => ({
-      direction: match[1],
-      amount: parseInt(match[2]),
-      unit: match[3],
-      context: match[0]
-    }));
-
-    // 시간 단위
-    const timeMatches = [...query.matchAll(this.dataTypePatterns.time_references.time_units)];
-    references.time_units = timeMatches.map(match => match[1]);
-
-    return references;
   }
 
   extractParameters(query) {
@@ -251,194 +220,141 @@ export class QueryAnalyzer {
     };
 
     // 모델 파라미터
-    for (const [param, pattern] of Object.entries(this.parameterPatterns.model_parameters)) {
-      const matches = [...query.matchAll(pattern)];
-      if (matches.length > 0) {
-        const value = matches[0][matches[0].length - 1];
-        parameters.model[param] = isNaN(value) ? value : parseFloat(value);
-      }
+    let match;
+    while ((match = this.patterns.parameter_patterns.model.exec(query)) !== null) {
+      parameters.model.type = match[1];
     }
 
-    // 시각화 파라미터
-    for (const [param, pattern] of Object.entries(this.parameterPatterns.visualization_parameters)) {
-      const matches = [...query.matchAll(pattern)];
-      if (matches.length > 0) {
-        if (param === 'figsize') {
-          parameters.visualization[param] = [parseInt(matches[0][2]), parseInt(matches[0][3])];
-        } else {
-          const value = matches[0][matches[0].length - 1];
-          parameters.visualization[param] = isNaN(value) ? value : parseFloat(value);
-        }
-      }
+    // 알고리즘 파라미터
+    this.patterns.parameter_patterns.algorithm.lastIndex = 0;
+    while ((match = this.patterns.parameter_patterns.algorithm.exec(query)) !== null) {
+      parameters.model.algorithm = match[1];
     }
 
-    // 데이터 파라미터
-    for (const [param, pattern] of Object.entries(this.parameterPatterns.data_parameters)) {
-      const matches = [...query.matchAll(pattern)];
-      if (matches.length > 0) {
-        const value = matches[0][matches[0].length - 1];
-        parameters.data[param] = value;
-      }
+    // 방법 파라미터
+    this.patterns.parameter_patterns.method.lastIndex = 0;
+    while ((match = this.patterns.parameter_patterns.method.exec(query)) !== null) {
+      parameters.model.method = match[1];
     }
+
+    // 컨텍스트 기반 파라미터 추론
+    this.inferParameters(query, parameters);
 
     return parameters;
   }
 
-  async analyzeDataRequirements(query) {
+  inferParameters(query, parameters) {
+    const lowerQuery = query.toLowerCase();
+
+    // 머신러닝 모델 추론
+    if (lowerQuery.includes('분류') || lowerQuery.includes('classification')) {
+      parameters.model.task = 'classification';
+    } else if (lowerQuery.includes('회귀') || lowerQuery.includes('regression')) {
+      parameters.model.task = 'regression';
+    } else if (lowerQuery.includes('클러스터') || lowerQuery.includes('cluster')) {
+      parameters.model.task = 'clustering';
+    }
+
+    // 시각화 유형 추론
+    if (lowerQuery.includes('산점도') || lowerQuery.includes('scatter')) {
+      parameters.visualization.type = 'scatter';
+    } else if (lowerQuery.includes('히스토그램') || lowerQuery.includes('histogram')) {
+      parameters.visualization.type = 'histogram';
+    } else if (lowerQuery.includes('박스플롯') || lowerQuery.includes('boxplot')) {
+      parameters.visualization.type = 'boxplot';
+    } else if (lowerQuery.includes('히트맵') || lowerQuery.includes('heatmap')) {
+      parameters.visualization.type = 'heatmap';
+    }
+
+    // 데이터 처리 파라미터
+    if (lowerQuery.includes('정규화') || lowerQuery.includes('normalize')) {
+      parameters.data.normalize = true;
+    }
+    if (lowerQuery.includes('스케일') || lowerQuery.includes('scale')) {
+      parameters.data.scale = true;
+    }
+  }
+
+  analyzeDataRequirements(query) {
     const requirements = {
       file_type: 'unknown',
-      data_type: 'tabular',
-      size_estimate: 'medium',
-      columns_needed: [],
+      data_type: 'unknown',
       preprocessing: [],
       validation: []
     };
 
-    // 파일 타입 결정
-    const fileRefs = this.extractFileReferences(query);
-    if (fileRefs.explicit.length > 0) {
-      requirements.file_type = fileRefs.explicit[0].type;
+    const lowerQuery = query.toLowerCase();
+
+    // 파일 타입 추론
+    if (lowerQuery.includes('csv')) {
+      requirements.file_type = 'csv';
+    } else if (lowerQuery.includes('excel') || lowerQuery.includes('xlsx')) {
+      requirements.file_type = 'excel';
+    } else if (lowerQuery.includes('json')) {
+      requirements.file_type = 'json';
     }
 
-    // 데이터 타입 추정
-    if (query.includes('이미지') || query.includes('image') || query.includes('jpg') || query.includes('png')) {
-      requirements.data_type = 'image';
-    } else if (query.includes('텍스트') || query.includes('text') || query.includes('nlp')) {
+    // 데이터 타입 추론
+    if (lowerQuery.includes('숫자') || lowerQuery.includes('numeric')) {
+      requirements.data_type = 'numeric';
+    } else if (lowerQuery.includes('텍스트') || lowerQuery.includes('text')) {
       requirements.data_type = 'text';
-    } else if (query.includes('시계열') || query.includes('time') || query.includes('날짜')) {
-      requirements.data_type = 'time_series';
+    } else if (lowerQuery.includes('범주') || lowerQuery.includes('categorical')) {
+      requirements.data_type = 'categorical';
     }
 
-    // 필요한 컬럼 추출
-    const columnRefs = this.extractColumnReferences(query);
-    requirements.columns_needed = [
-      ...columnRefs.explicit.map(ref => ref.column),
-      ...columnRefs.target.map(ref => ref.column),
-      ...columnRefs.feature_lists.flatMap(ref => ref.features)
-    ];
-
-    // 전처리 요구사항 분석
-    if (query.includes('정규화') || query.includes('normalize')) {
+    // 전처리 요구사항
+    if (lowerQuery.includes('정규화') || lowerQuery.includes('normalize')) {
       requirements.preprocessing.push('normalization');
     }
-    if (query.includes('스케일링') || query.includes('scale')) {
+    if (lowerQuery.includes('스케일') || lowerQuery.includes('scale')) {
       requirements.preprocessing.push('scaling');
     }
-    if (query.includes('이상치') || query.includes('outlier')) {
+    if (lowerQuery.includes('이상치') || lowerQuery.includes('outlier')) {
       requirements.preprocessing.push('outlier_detection');
     }
-    if (query.includes('결측값') || query.includes('missing')) {
+    if (lowerQuery.includes('결측값') || lowerQuery.includes('missing')) {
       requirements.preprocessing.push('missing_value_handling');
     }
 
     return requirements;
   }
 
-  async detectAvailableFiles() {
-    const files = {
-      current_directory: [],
-      uploads: [],
-      data_directory: []
-    };
-
-    try {
-      // 현재 디렉토리 스캔
-      const currentFiles = await fs.readdir('./');
-      files.current_directory = currentFiles
-        .filter(file => this.isDataFile(file))
-        .map(file => ({
-          name: file,
-          path: `./${file}`,
-          type: this.determineFileType(file),
-          size: null // 크기는 필요시 별도 조회
-        }));
-
-      // uploads 디렉토리 스캔
-      try {
-        const uploadFiles = await fs.readdir('./uploads');
-        files.uploads = uploadFiles
-          .filter(file => this.isDataFile(file))
-          .map(file => ({
-            name: file,
-            path: `./uploads/${file}`,
-            type: this.determineFileType(file),
-            size: null
-          }));
-      } catch (error) {
-        // uploads 디렉토리가 없으면 무시
-      }
-
-      // data 디렉토리 스캔
-      try {
-        const dataFiles = await fs.readdir('./data');
-        files.data_directory = dataFiles
-          .filter(file => this.isDataFile(file))
-          .map(file => ({
-            name: file,
-            path: `./data/${file}`,
-            type: this.determineFileType(file),
-            size: null
-          }));
-      } catch (error) {
-        // data 디렉토리가 없으면 무시
-      }
-
-    } catch (error) {
-      this.logger.warn('파일 감지 실패:', error);
-    }
-
-    return files;
-  }
-
   analyzeContext(query) {
     const context = {
       domain: 'general',
       urgency: 'normal',
-      complexity: 'medium',
-      user_expertise: 'intermediate',
-      output_preference: 'comprehensive'
+      complexity: 'medium'
     };
+
+    const lowerQuery = query.toLowerCase();
 
     // 도메인 분석
-    const domainKeywords = {
-      finance: ['금융', '주식', '투자', '수익', '리스크'],
-      healthcare: ['의료', '건강', '환자', '진료', '치료'],
-      marketing: ['마케팅', '고객', '판매', '광고', '캠페인'],
-      manufacturing: ['제조', '생산', '품질', '공정', '설비'],
-      education: ['교육', '학생', '성적', '학습', '평가']
-    };
-
-    for (const [domain, keywords] of Object.entries(domainKeywords)) {
-      if (keywords.some(keyword => query.includes(keyword))) {
-        context.domain = domain;
-        break;
-      }
+    if (lowerQuery.includes('금융') || lowerQuery.includes('financial')) {
+      context.domain = 'finance';
+    } else if (lowerQuery.includes('의료') || lowerQuery.includes('medical')) {
+      context.domain = 'healthcare';
+    } else if (lowerQuery.includes('마케팅') || lowerQuery.includes('marketing')) {
+      context.domain = 'marketing';
+    } else if (lowerQuery.includes('IoT') || lowerQuery.includes('센서')) {
+      context.domain = 'iot';
     }
 
     // 긴급도 분석
-    const urgencyKeywords = {
-      high: ['급해', '긴급', '빨리', '즉시', 'urgent'],
-      low: ['천천히', '나중에', '여유있게', 'when convenient']
-    };
-
-    for (const [level, keywords] of Object.entries(urgencyKeywords)) {
-      if (keywords.some(keyword => query.includes(keyword))) {
-        context.urgency = level;
-        break;
-      }
+    if (lowerQuery.includes('긴급') || lowerQuery.includes('urgent') || lowerQuery.includes('빨리')) {
+      context.urgency = 'high';
+    } else if (lowerQuery.includes('천천히') || lowerQuery.includes('나중에')) {
+      context.urgency = 'low';
     }
 
     // 복잡도 분석
-    const complexityIndicators = {
-      simple: ['간단히', '빠르게', '대충', 'quick', 'simple'],
-      complex: ['자세히', '정확히', '완전히', 'detailed', 'comprehensive']
-    };
-
-    for (const [level, keywords] of Object.entries(complexityIndicators)) {
-      if (keywords.some(keyword => query.includes(keyword))) {
-        context.complexity = level;
-        break;
-      }
+    const complexityKeywords = ['복잡', '상세', '정교', 'complex', 'detailed'];
+    const simpleKeywords = ['간단', '빠르게', 'simple', 'quick'];
+    
+    if (complexityKeywords.some(keyword => lowerQuery.includes(keyword))) {
+      context.complexity = 'high';
+    } else if (simpleKeywords.some(keyword => lowerQuery.includes(keyword))) {
+      context.complexity = 'low';
     }
 
     return context;
@@ -452,11 +368,15 @@ export class QueryAnalyzer {
       suggestions: []
     };
 
-    // 길이 검증
-    if (query.length < 5) {
-      validation.errors.push('쿼리가 너무 짧습니다.');
+    // 기본 검증
+    if (!query || query.trim().length === 0) {
       validation.is_valid = false;
-    } else if (query.length > 1000) {
+      validation.errors.push('빈 쿼리입니다.');
+      return validation;
+    }
+
+    // 길이 검증
+    if (query.length > 1000) {
       validation.warnings.push('쿼리가 너무 깁니다. 간단히 요약해주세요.');
     }
 
@@ -577,7 +497,7 @@ export class QueryAnalyzer {
     
     // 숫자 값들을 적절한 파라미터로 매핑
     if (numericValues.integers.length > 0) {
-      const firstInt = numericValues.integers[0];
+      const firstInt = numericValues.integers[0].value;
       
       // 일반적인 범위에 따라 파라미터 추정
       if (firstInt >= 2 && firstInt <= 20) {
@@ -590,7 +510,7 @@ export class QueryAnalyzer {
     }
     
     if (numericValues.floats.length > 0) {
-      const firstFloat = numericValues.floats[0];
+      const firstFloat = numericValues.floats[0].value;
       
       if (firstFloat > 0 && firstFloat < 1) {
         resolved.model.learning_rate = resolved.model.learning_rate || firstFloat;
@@ -650,6 +570,62 @@ export class QueryAnalyzer {
 
   isDataFile(filename) {
     return Object.values(this.filePatterns).some(pattern => pattern.test(filename));
+  }
+
+  async detectAvailableFiles() {
+    const files = {
+      current_directory: [],
+      uploads: [],
+      data_directory: []
+    };
+
+    try {
+      // 현재 디렉토리 스캔
+      const currentFiles = await fs.readdir('./');
+      files.current_directory = currentFiles
+        .filter(file => this.isDataFile(file))
+        .map(file => ({
+          name: file,
+          path: `./${file}`,
+          type: this.determineFileType(file),
+          size: null // 크기는 필요시 별도 조회
+        }));
+
+      // uploads 디렉토리 스캔
+      try {
+        const uploadFiles = await fs.readdir('./uploads');
+        files.uploads = uploadFiles
+          .filter(file => this.isDataFile(file))
+          .map(file => ({
+            name: file,
+            path: `./uploads/${file}`,
+            type: this.determineFileType(file),
+            size: null
+          }));
+      } catch (error) {
+        // uploads 디렉토리가 없으면 무시
+      }
+
+      // data 디렉토리 스캔
+      try {
+        const dataFiles = await fs.readdir('./data');
+        files.data_directory = dataFiles
+          .filter(file => this.isDataFile(file))
+          .map(file => ({
+            name: file,
+            path: `./data/${file}`,
+            type: this.determineFileType(file),
+            size: null
+          }));
+      } catch (error) {
+        // data 디렉토리가 없으면 무시
+      }
+
+    } catch (error) {
+      this.logger.warn('파일 감지 실패:', error);
+    }
+
+    return files;
   }
 
   getErrorAnalysis(query, error) {
