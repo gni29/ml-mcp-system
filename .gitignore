@@ -189,7 +189,7 @@ docker-compose.override.yml
 # MCP specific runtime files
 mcp-server.pid
 ollama.pid
-
+ml-mcp-system/
 # User uploaded data
 user_data/
 uploads/
