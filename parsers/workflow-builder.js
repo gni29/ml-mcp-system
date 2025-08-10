@@ -26,7 +26,52 @@ export class WorkflowBuilder {
       this.workflowTemplates = JSON.parse(templatesData);
     } catch (error) {
       this.logger.warn('워크플로우 템플릿 로드 실패:', error);
-      this.workflowTemplates = { common_workflows: {}, ml_workflows: {} };
+      this.workflowTemplates = { 
+        common_workflows: {
+          basic_analysis: {
+            name: 'basic_analysis',
+            description: '기본 데이터 분석',
+            steps: [
+              { type: 'basic', method: 'descriptive_stats', params: {} },
+              { type: 'basic', method: 'correlation', params: {} },
+              { type: 'visualization', method: '2d.scatter', params: {} }
+            ]
+          },
+          comprehensive_eda: {
+            name: 'comprehensive_eda',
+            description: '포괄적 탐색적 데이터 분석',
+            steps: [
+              { type: 'basic', method: 'descriptive_stats', params: {} },
+              { type: 'basic', method: 'correlation', params: {} },
+              { type: 'basic', method: 'distribution', params: {} },
+              { type: 'advanced', method: 'outlier_detection', params: {} },
+              { type: 'visualization', method: 'heatmap', params: {} }
+            ]
+          }
+        },
+        ml_workflows: {
+          classification: {
+            name: 'classification_pipeline',
+            description: '분류 모델 파이프라인',
+            steps: [
+              { type: 'basic', method: 'descriptive_stats', params: {} },
+              { type: 'advanced', method: 'feature_engineering', params: {} },
+              { type: 'ml_traditional', method: 'classification', params: {} },
+              { type: 'visualization', method: 'confusion_matrix', params: {} }
+            ]
+          },
+          regression: {
+            name: 'regression_pipeline',
+            description: '회귀 모델 파이프라인',
+            steps: [
+              { type: 'basic', method: 'descriptive_stats', params: {} },
+              { type: 'basic', method: 'correlation', params: {} },
+              { type: 'ml_traditional', method: 'regression', params: {} },
+              { type: 'visualization', method: 'scatter', params: {} }
+            ]
+          }
+        }
+      };
     }
   }
 
@@ -58,131 +103,39 @@ export class WorkflowBuilder {
       },
       'advanced.outlier_detection': {
         requires: ['basic.descriptive_stats'],
-        provides: ['outlier_indices', 'clean_data', 'outlier_scores']
+        provides: ['outlier_indices', 'cleaned_data']
       },
-      'ml_traditional.supervised.regression.linear': {
-        requires: ['data_preprocessing'],
-        provides: ['trained_model', 'predictions', 'regression_metrics']
-      },
-      'ml_traditional.supervised.regression.random_forest': {
-        requires: ['data_preprocessing'],
-        provides: ['trained_model', 'predictions', 'feature_importance', 'regression_metrics']
-      },
-      'ml_traditional.supervised.regression.xgboost': {
-        requires: ['data_preprocessing'],
-        provides: ['trained_model', 'predictions', 'feature_importance', 'regression_metrics']
-      },
-      'ml_traditional.supervised.classification.logistic': {
-        requires: ['data_preprocessing'],
+      'ml_traditional.classification': {
+        requires: ['feature_engineering', 'data_preprocessing'],
         provides: ['trained_model', 'predictions', 'classification_metrics']
       },
-      'ml_traditional.supervised.classification.random_forest': {
-        requires: ['data_preprocessing'],
-        provides: ['trained_model', 'predictions', 'feature_importance', 'classification_metrics']
+      'ml_traditional.regression': {
+        requires: ['feature_engineering', 'data_preprocessing'],
+        provides: ['trained_model', 'predictions', 'regression_metrics']
       },
-      'ml_traditional.supervised.classification.xgboost': {
-        requires: ['data_preprocessing'],
-        provides: ['trained_model', 'predictions', 'feature_importance', 'classification_metrics']
+      'deep_learning.cnn': {
+        requires: ['image_preprocessing'],
+        provides: ['trained_model', 'feature_maps', 'predictions']
       },
-      'ml_traditional.supervised.ensemble.voting': {
-        requires: ['data_preprocessing'],
-        provides: ['ensemble_model', 'ensemble_predictions', 'individual_scores']
+      'deep_learning.rnn': {
+        requires: ['sequence_preprocessing'],
+        provides: ['trained_model', 'sequence_predictions']
       },
-      'ml_traditional.supervised.ensemble.stacking': {
-        requires: ['data_preprocessing'],
-        provides: ['stacked_model', 'stacked_predictions', 'base_predictions']
+      'visualization.heatmap': {
+        requires: ['correlation_matrix'],
+        provides: ['correlation_plot']
       },
-      'ml_traditional.unsupervised.clustering.kmeans': {
-        requires: ['data_preprocessing'],
-        provides: ['cluster_labels', 'cluster_centers', 'inertia']
-      },
-      'ml_traditional.unsupervised.clustering.dbscan': {
-        requires: ['data_preprocessing'],
-        provides: ['cluster_labels', 'core_samples', 'noise_points']
-      },
-      'ml_traditional.unsupervised.clustering.hierarchical': {
-        requires: ['data_preprocessing'],
-        provides: ['cluster_labels', 'dendrogram', 'linkage_matrix']
-      },
-      'ml_traditional.unsupervised.dimensionality_reduction.pca': {
-        requires: ['data_preprocessing'],
-        provides: ['pca_components', 'explained_variance', 'transformed_data']
-      },
-      'ml_traditional.unsupervised.dimensionality_reduction.tsne': {
-        requires: ['data_preprocessing'],
-        provides: ['tsne_embedding', 'kl_divergence']
-      },
-      'ml_traditional.unsupervised.dimensionality_reduction.umap': {
-        requires: ['data_preprocessing'],
-        provides: ['umap_embedding', 'umap_graph']
+      'visualization.scatter': {
+        requires: ['data_loading'],
+        provides: ['scatter_plot']
       },
       'timeseries.trend_analysis': {
         requires: ['time_series_data'],
-        provides: ['trend_components', 'trend_statistics']
-      },
-      'timeseries.seasonality': {
-        requires: ['time_series_data'],
-        provides: ['seasonal_components', 'seasonal_patterns']
+        provides: ['trend_components', 'seasonality']
       },
       'timeseries.forecasting': {
-        requires: ['timeseries.trend_analysis'],
-        provides: ['forecast_values', 'confidence_intervals', 'forecast_metrics']
-      },
-      'visualization.2d.scatter': {
-        requires: ['numeric_data'],
-        provides: ['scatter_plot', 'plot_insights']
-      },
-      'visualization.2d.line': {
-        requires: ['numeric_data'],
-        provides: ['line_plot', 'trend_visualization']
-      },
-      'visualization.2d.bar': {
-        requires: ['categorical_data'],
-        provides: ['bar_plot', 'category_comparison']
-      },
-      'visualization.2d.histogram': {
-        requires: ['numeric_data'],
-        provides: ['histogram_plot', 'distribution_visualization']
-      },
-      'visualization.2d.boxplot': {
-        requires: ['numeric_data'],
-        provides: ['boxplot', 'distribution_comparison']
-      },
-      'visualization.2d.heatmap': {
-        requires: ['correlation_matrix'],
-        provides: ['heatmap_plot', 'correlation_insights']
-      },
-      'visualization.3d.scatter_3d': {
-        requires: ['pca_components', 'transformed_data'],
-        provides: ['3d_plot', 'dimensional_insights']
-      },
-      'visualization.3d.surface': {
-        requires: ['grid_data'],
-        provides: ['surface_plot', '3d_visualization']
-      },
-      'visualization.interactive.plotly': {
-        requires: ['processed_data'],
-        provides: ['interactive_plot', 'html_visualization']
-      },
-      'visualization.interactive.bokeh': {
-        requires: ['processed_data'],
-        provides: ['interactive_plot', 'html_visualization']
-      },
-      'deep_learning.computer_vision.image_classification': {
-        requires: ['image_data', 'preprocessed_images'],
-        provides: ['trained_model', 'classification_results', 'model_checkpoints']
-      },
-      'deep_learning.computer_vision.object_detection': {
-        requires: ['image_data', 'annotated_images'],
-        provides: ['detection_model', 'detection_results', 'model_checkpoints']
-      },
-      'deep_learning.nlp.text_classification': {
-        requires: ['text_data', 'tokenized_text'],
-        provides: ['text_model', 'text_predictions', 'model_checkpoints']
-      },
-      'deep_learning.nlp.sentiment_analysis': {
-        requires: ['text_data', 'labeled_text'],
-        provides: ['sentiment_model', 'sentiment_predictions', 'model_checkpoints']
+        requires: ['trend_analysis'],
+        provides: ['forecast_results', 'prediction_intervals']
       }
     };
   }
@@ -190,195 +143,142 @@ export class WorkflowBuilder {
   initializeStepCompatibility() {
     return {
       'basic': {
-        compatible_with: ['basic', 'advanced', 'visualization'],
-        incompatible_with: ['deep_learning'],
-        data_types: ['tabular', 'numeric'],
-        execution_time: 'fast',
-        resource_requirements: 'low'
+        data_types: ['tabular', 'numerical'],
+        incompatible_with: [],
+        resource_requirements: { memory: 'low', cpu: 'low', gpu: false }
       },
       'advanced': {
-        compatible_with: ['basic', 'advanced', 'ml_traditional', 'visualization'],
+        data_types: ['tabular', 'numerical'],
         incompatible_with: [],
-        data_types: ['tabular', 'numeric'],
-        execution_time: 'medium',
-        resource_requirements: 'medium'
+        resource_requirements: { memory: 'medium', cpu: 'medium', gpu: false }
       },
       'ml_traditional': {
-        compatible_with: ['basic', 'advanced', 'visualization'],
+        data_types: ['tabular', 'numerical'],
         incompatible_with: ['deep_learning'],
-        data_types: ['tabular', 'numeric', 'categorical'],
-        execution_time: 'medium',
-        resource_requirements: 'medium'
-      },
-      'timeseries': {
-        compatible_with: ['basic', 'visualization'],
-        incompatible_with: ['ml_traditional', 'deep_learning'],
-        data_types: ['time_series'],
-        execution_time: 'medium',
-        resource_requirements: 'medium'
+        resource_requirements: { memory: 'medium', cpu: 'high', gpu: false }
       },
       'deep_learning': {
-        compatible_with: ['visualization'],
-        incompatible_with: ['basic', 'advanced', 'ml_traditional'],
-        data_types: ['image', 'text', 'audio', 'video'],
-        execution_time: 'slow',
-        resource_requirements: 'high'
+        data_types: ['image', 'text', 'tabular'],
+        incompatible_with: [],
+        resource_requirements: { memory: 'high', cpu: 'high', gpu: true }
       },
       'visualization': {
-        compatible_with: ['basic', 'advanced', 'ml_traditional', 'deep_learning', 'timeseries'],
-        incompatible_with: [],
         data_types: ['all'],
-        execution_time: 'fast',
-        resource_requirements: 'low'
+        incompatible_with: [],
+        resource_requirements: { memory: 'low', cpu: 'low', gpu: false }
+      },
+      'timeseries': {
+        data_types: ['time_series'],
+        incompatible_with: ['ml_traditional'],
+        resource_requirements: { memory: 'medium', cpu: 'medium', gpu: false }
+      },
+      'preprocessing': {
+        data_types: ['all'],
+        incompatible_with: [],
+        resource_requirements: { memory: 'low', cpu: 'low', gpu: false }
+      },
+      'postprocessing': {
+        data_types: ['all'],
+        incompatible_with: [],
+        resource_requirements: { memory: 'low', cpu: 'low', gpu: false }
       }
     };
   }
 
-  async buildWorkflow(intentAnalysis, queryAnalysis) {
+  async buildWorkflow(intentAnalysis, queryAnalysis = {}) {
     try {
-      this.logger.info('워크플로우 구성 시작');
+      this.logger.debug('워크플로우 구축 시작', { intentAnalysis, queryAnalysis });
 
-      // 1. 기존 템플릿 매칭 시도
-      const templateWorkflow = this.findMatchingTemplate(intentAnalysis, queryAnalysis);
-      if (templateWorkflow) {
-        return this.customizeTemplate(templateWorkflow, intentAnalysis, queryAnalysis);
+      // 1. 템플릿 기반 워크플로우 검색
+      const templateMatches = this.findMatchingTemplates(intentAnalysis, queryAnalysis);
+      
+      let workflow;
+      let executionPlan;
+
+      if (templateMatches.length > 0) {
+        // 가장 적합한 템플릿 선택 및 커스터마이징
+        const bestTemplate = templateMatches[0].template;
+        workflow = this.customizeTemplate(bestTemplate, intentAnalysis, queryAnalysis);
+        this.logger.debug(`템플릿 기반 워크플로우 선택: ${bestTemplate.name}`);
+      } else {
+        // 동적 워크플로우 생성
+        workflow = await this.buildDynamicWorkflow(intentAnalysis, queryAnalysis);
+        this.logger.debug('동적 워크플로우 생성');
       }
 
-      // 2. 동적 워크플로우 생성
-      const dynamicWorkflow = await this.buildDynamicWorkflow(intentAnalysis, queryAnalysis);
-      
-      // 3. 워크플로우 검증 및 최적화
-      const optimizedWorkflow = this.optimizeWorkflow(dynamicWorkflow);
-      
-      // 4. 실행 계획 생성
-      const executionPlan = this.generateExecutionPlan(optimizedWorkflow);
+      // 2. 워크플로우 최적화
+      workflow = this.optimizeWorkflow(workflow);
 
-      return {
-        workflow: optimizedWorkflow,
+      // 3. 실행 계획 생성
+      executionPlan = this.generateExecutionPlan(workflow);
+
+      // 4. 워크플로우 검증
+      const validation = this.validateWorkflow(workflow);
+      if (!validation.isValid) {
+        this.logger.warn('워크플로우 검증 실패:', validation.errors);
+        return this.getFallbackWorkflow();
+      }
+
+      const result = {
+        workflow,
         execution_plan: executionPlan,
-        estimated_time: this.estimateExecutionTime(optimizedWorkflow),
-        resource_requirements: this.calculateResourceRequirements(optimizedWorkflow)
+        estimated_time: this.estimateExecutionTime(workflow),
+        resource_requirements: this.calculateResourceRequirements(workflow),
+        validation: validation,
+        optimizations: this.suggestOptimizations(workflow)
       };
 
+      this.logger.info('워크플로우 구축 완료', {
+        steps: workflow.steps.length,
+        estimated_time: result.estimated_time
+      });
+
+      return result;
+
     } catch (error) {
-      this.logger.error('워크플로우 구성 실패:', error);
-      return this.buildFallbackWorkflow(intentAnalysis, queryAnalysis);
+      this.logger.error('워크플로우 구축 실패:', error);
+      return this.getFallbackWorkflow();
     }
   }
 
-  findMatchingTemplate(intentAnalysis, queryAnalysis) {
-    const { keywords, suggested_methods } = intentAnalysis;
-    
-    // 키워드 기반 템플릿 매칭
-    const keywordMatches = this.matchTemplatesByKeywords(keywords);
-    
-    // 메서드 기반 템플릿 매칭
-    const methodMatches = this.matchTemplatesByMethods(suggested_methods);
-    
-    // 쿼리 분석 기반 템플릿 매칭
-    const queryMatches = this.matchTemplatesByQuery(queryAnalysis);
-    
-    // 가장 적합한 템플릿 선택
-    const allMatches = [...keywordMatches, ...methodMatches, ...queryMatches];
-    if (allMatches.length === 0) return null;
-    
-    // 매칭 스코어 기반 정렬
-    const sortedMatches = allMatches.sort((a, b) => b.score - a.score);
-    
-    return sortedMatches[0].template;
-  }
-
-  matchTemplatesByKeywords(keywords) {
+  findMatchingTemplates(intentAnalysis, queryAnalysis) {
     const matches = [];
-    
+    const { suggested_methods, ai_analysis } = intentAnalysis;
+    const { data_requirements = {}, parameters = {} } = queryAnalysis;
+
     for (const [category, workflows] of Object.entries(this.workflowTemplates)) {
       for (const [name, workflow] of Object.entries(workflows)) {
         let score = 0;
         
-        // 워크플로우 단계와 키워드 매칭
-        for (const step of workflow.steps) {
-          const stepKeywords = this.getStepKeywords(step);
-          
-          if (keywords.analysis) {
-            for (const analysis of keywords.analysis) {
-              if (stepKeywords.includes(analysis.type)) {
-                score += 2;
-              }
-              if (stepKeywords.includes(analysis.category)) {
-                score += 1;
-              }
-            }
+        // 제안된 메서드와의 매칭 점수
+        for (const method of suggested_methods) {
+          const [type, methodName] = method.split('.');
+          if (workflow.steps.some(step => step.type === type && 
+              (step.method === methodName || !methodName))) {
+            score += 2;
           }
         }
-        
-        if (score > 0) {
-          matches.push({
-            template: workflow,
-            score: score,
-            name: name,
-            category: category
-          });
-        }
-      }
-    }
-    
-    return matches;
-  }
 
-  matchTemplatesByMethods(methods) {
-    const matches = [];
-    
-    for (const [category, workflows] of Object.entries(this.workflowTemplates)) {
-      for (const [name, workflow] of Object.entries(workflows)) {
-        let score = 0;
-        
-        for (const step of workflow.steps) {
-          const stepMethod = `${step.type}.${step.method}`;
-          
-          if (methods.includes(stepMethod)) {
-            score += 3; // 정확한 메서드 매칭은 높은 점수
-          } else if (methods.some(method => method.startsWith(step.type))) {
-            score += 1; // 타입 매칭은 낮은 점수
-          }
-        }
-        
-        if (score > 0) {
-          matches.push({
-            template: workflow,
-            score: score,
-            name: name,
-            category: category
-          });
-        }
-      }
-    }
-    
-    return matches;
-  }
-
-  matchTemplatesByQuery(queryAnalysis) {
-    const matches = [];
-    const { data_requirements, parameters } = queryAnalysis;
-    
-    for (const [category, workflows] of Object.entries(this.workflowTemplates)) {
-      for (const [name, workflow] of Object.entries(workflows)) {
-        let score = 0;
-        
         // 데이터 타입 매칭
-        if (this.isWorkflowCompatibleWithDataType(workflow, data_requirements.data_type)) {
-          score += 2;
+        if (data_requirements.type && 
+            this.isWorkflowCompatibleWithDataType(workflow, data_requirements.type)) {
+          score += 1;
         }
-        
+
+        // 복잡도 매칭
+        if (ai_analysis && ai_analysis.complexity) {
+          const workflowComplexity = this.calculateWorkflowComplexity(workflow);
+          const complexityDiff = Math.abs(workflowComplexity - ai_analysis.complexity);
+          if (complexityDiff < 0.3) {
+            score += 1;
+          }
+        }
+
         // 파라미터 매칭
         if (this.hasMatchingParameters(workflow, parameters)) {
           score += 1;
         }
-        
-        // 전처리 요구사항 매칭
-        if (this.matchesPreprocessingRequirements(workflow, data_requirements.preprocessing)) {
-          score += 1;
-        }
-        
+
         if (score > 0) {
           matches.push({
             template: workflow,
@@ -389,8 +289,9 @@ export class WorkflowBuilder {
         }
       }
     }
-    
-    return matches;
+
+    // 점수 순으로 정렬
+    return matches.sort((a, b) => b.score - a.score);
   }
 
   customizeTemplate(template, intentAnalysis, queryAnalysis) {
@@ -408,6 +309,64 @@ export class WorkflowBuilder {
     customizedWorkflow.customization_timestamp = new Date().toISOString();
     
     return customizedWorkflow;
+  }
+
+  customizeParameters(workflow, intentAnalysis, queryAnalysis) {
+    const { parameters } = queryAnalysis;
+    
+    for (const step of workflow.steps) {
+      if (step.params) {
+        // 의도 분석에서 추출된 파라미터 적용
+        if (intentAnalysis.parameters) {
+          Object.assign(step.params, intentAnalysis.parameters);
+        }
+
+        // 쿼리 분석에서 추출된 파라미터 적용
+        if (parameters) {
+          // 타입별 파라미터 매핑
+          if (step.type === 'advanced' && step.method === 'clustering') {
+            if (parameters.n_clusters) step.params.n_clusters = parameters.n_clusters;
+          }
+          if (step.type === 'advanced' && step.method === 'pca') {
+            if (parameters.n_components) step.params.n_components = parameters.n_components;
+          }
+          if (step.type === 'ml_traditional') {
+            if (parameters.test_size) step.params.test_size = parameters.test_size;
+            if (parameters.random_state) step.params.random_state = parameters.random_state;
+          }
+        }
+      }
+    }
+  }
+
+  adjustSteps(workflow, intentAnalysis, queryAnalysis) {
+    const { ai_analysis } = intentAnalysis;
+
+    // 시각화 요구사항에 따른 단계 추가
+    if (ai_analysis && ai_analysis.requires_visualization) {
+      const hasVisualization = workflow.steps.some(step => step.type === 'visualization');
+      if (!hasVisualization) {
+        const vizMethod = this.selectVisualizationMethod(intentAnalysis, queryAnalysis);
+        workflow.steps.push({
+          type: 'visualization',
+          method: vizMethod,
+          params: this.extractVisualizationParameters(queryAnalysis)
+        });
+      }
+    }
+
+    // 데이터 전처리 요구사항에 따른 단계 추가
+    const { data_requirements } = queryAnalysis;
+    if (data_requirements && data_requirements.preprocessing === 'extensive') {
+      const hasPreprocessing = workflow.steps.some(step => step.type === 'preprocessing');
+      if (!hasPreprocessing) {
+        workflow.steps.unshift({
+          type: 'preprocessing',
+          method: 'comprehensive',
+          params: {}
+        });
+      }
+    }
   }
 
   async buildDynamicWorkflow(intentAnalysis, queryAnalysis) {
@@ -443,40 +402,42 @@ export class WorkflowBuilder {
 
   buildPreprocessingSteps(queryAnalysis) {
     const steps = [];
-    const { data_requirements } = queryAnalysis;
+    const { data_requirements = {} } = queryAnalysis;
 
     // 데이터 로딩 단계
     steps.push({
       type: 'data',
       method: 'load',
       params: {
-        file_type: data_requirements.file_type,
-        data_type: data_requirements.data_type
+        file_type: data_requirements.file_type || 'csv',
+        data_type: data_requirements.type || 'tabular'
       }
     });
 
     // 전처리 단계들
-    if (data_requirements.preprocessing.includes('missing_value_handling')) {
+    if (data_requirements.preprocessing === 'extensive') {
       steps.push({
         type: 'preprocessing',
         method: 'handle_missing_values',
         params: { strategy: 'auto' }
       });
-    }
 
-    if (data_requirements.preprocessing.includes('outlier_detection')) {
       steps.push({
         type: 'advanced',
         method: 'outlier_detection',
         params: { method: 'iqr' }
       });
-    }
 
-    if (data_requirements.preprocessing.includes('normalization')) {
       steps.push({
         type: 'preprocessing',
         method: 'normalize',
         params: { method: 'standard' }
+      });
+    } else if (data_requirements.preprocessing === 'moderate') {
+      steps.push({
+        type: 'preprocessing',
+        method: 'handle_missing_values',
+        params: { strategy: 'simple' }
       });
     }
 
@@ -487,8 +448,8 @@ export class WorkflowBuilder {
     const steps = [];
     const { suggested_methods, primary_analysis } = intentAnalysis;
 
-    // 기본 통계 분석 (거의 항상 포함)
-    if (!suggested_methods.includes('deep_learning')) {
+    // 기본 통계 분석 (딥러닝이 아닌 경우에만)
+    if (!suggested_methods.some(method => method.startsWith('deep_learning'))) {
       steps.push({
         type: 'basic',
         method: 'descriptive_stats',
@@ -501,11 +462,13 @@ export class WorkflowBuilder {
       const [type, ...methodParts] = method.split('.');
       const methodName = methodParts.join('.');
 
-      steps.push({
-        type: type,
-        method: methodName,
-        params: this.extractMethodParameters(method, intentAnalysis, queryAnalysis)
-      });
+      if (methodName) {
+        steps.push({
+          type: type,
+          method: methodName,
+          params: this.extractMethodParameters(method, intentAnalysis, queryAnalysis)
+        });
+      }
     }
 
     // 주요 분석이 아직 포함되지 않았다면 추가
@@ -549,7 +512,7 @@ export class WorkflowBuilder {
       params: {}
     });
 
-    // 리포트 생성 단계
+    // 리포트 생성 단계 (복잡한 분석인 경우)
     if (intentAnalysis.complexity > 0.5) {
       steps.push({
         type: 'postprocessing',
@@ -584,89 +547,107 @@ export class WorkflowBuilder {
 
   removeDuplicateSteps(steps) {
     const seen = new Set();
-    const uniqueSteps = [];
-
-    for (const step of steps) {
-      const stepKey = `${step.type}.${step.method}`;
-      if (!seen.has(stepKey)) {
-        seen.add(stepKey);
-        uniqueSteps.push(step);
+    return steps.filter(step => {
+      const key = `${step.type}.${step.method}`;
+      if (seen.has(key)) {
+        return false;
       }
-    }
-
-    return uniqueSteps;
+      seen.add(key);
+      return true;
+    });
   }
 
   optimizeStepOrder(steps) {
-    const orderedSteps = [];
-    const remaining = [...steps];
+    // 종속성을 고려한 위상 정렬
+    const dependencyGraph = new Map();
+    const inDegree = new Map();
 
-    // 종속성 기반 정렬
-    while (remaining.length > 0) {
-      let added = false;
+    // 그래프 초기화
+    steps.forEach((step, index) => {
+      const stepKey = `${step.type}.${step.method}`;
+      dependencyGraph.set(index, []);
+      inDegree.set(index, 0);
+    });
 
-      for (let i = 0; i < remaining.length; i++) {
-        const step = remaining[i];
-        const stepKey = `${step.type}.${step.method}`;
-        const dependencies = this.stepDependencies[stepKey];
-
-        if (!dependencies || this.areDependenciesSatisfied(dependencies.requires, orderedSteps)) {
-          orderedSteps.push(step);
-          remaining.splice(i, 1);
-          added = true;
-          break;
+    // 종속성 관계 구축
+    steps.forEach((step, index) => {
+      const stepKey = `${step.type}.${step.method}`;
+      const dependencies = this.stepDependencies[stepKey];
+      
+      if (dependencies && dependencies.requires) {
+        for (const requirement of dependencies.requires) {
+          // 이전 단계에서 requirement를 제공하는 단계 찾기
+          for (let i = 0; i < index; i++) {
+            const prevStep = steps[i];
+            const prevStepKey = `${prevStep.type}.${prevStep.method}`;
+            const prevDependencies = this.stepDependencies[prevStepKey];
+            
+            if (prevDependencies && prevDependencies.provides && 
+                prevDependencies.provides.includes(requirement)) {
+              dependencyGraph.get(i).push(index);
+              inDegree.set(index, inDegree.get(index) + 1);
+            }
+          }
         }
       }
+    });
 
-      if (!added) {
-        // 순환 종속성이나 해결할 수 없는 종속성이 있는 경우
-        this.logger.warn('종속성 해결 실패, 남은 단계들을 순서대로 추가');
-        orderedSteps.push(...remaining);
-        break;
+    // 위상 정렬 수행
+    const result = [];
+    const queue = [];
+
+    // 진입 차수가 0인 노드들을 큐에 추가
+    for (const [node, degree] of inDegree) {
+      if (degree === 0) {
+        queue.push(node);
       }
     }
 
-    return orderedSteps;
-  }
+    while (queue.length > 0) {
+      const current = queue.shift();
+      result.push(steps[current]);
 
-  areDependenciesSatisfied(requires, completedSteps) {
-    if (!requires || requires.length === 0) return true;
+      // 인접 노드들의 진입 차수 감소
+      for (const neighbor of dependencyGraph.get(current)) {
+        inDegree.set(neighbor, inDegree.get(neighbor) - 1);
+        if (inDegree.get(neighbor) === 0) {
+          queue.push(neighbor);
+        }
+      }
+    }
 
-    const completedStepKeys = completedSteps.map(step => `${step.type}.${step.method}`);
-    const completedProvides = completedSteps.flatMap(step => {
-      const stepKey = `${step.type}.${step.method}`;
-      const stepDep = this.stepDependencies[stepKey];
-      return stepDep ? stepDep.provides || [] : [];
-    });
-
-    return requires.every(req =>
-      completedStepKeys.includes(req) || completedProvides.includes(req)
-    );
+    return result.length === steps.length ? result : steps; // 순환 의존성이 있는 경우 원본 반환
   }
 
   validateDependencies(steps) {
     const issues = [];
+    const availableProvisions = new Set(['data_loading']); // 기본적으로 사용 가능한 것들
 
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
+    steps.forEach((step, index) => {
       const stepKey = `${step.type}.${step.method}`;
       const dependencies = this.stepDependencies[stepKey];
-
-      if (dependencies && dependencies.requires) {
-        const previousSteps = steps.slice(0, i);
-        if (!this.areDependenciesSatisfied(dependencies.requires, previousSteps)) {
-          issues.push({
-            step: stepKey,
-            position: i,
-            missing_dependencies: dependencies.requires
-          });
+      
+      if (dependencies) {
+        const { requires, provides } = dependencies;
+        
+        // 필요한 의존성 확인
+        if (requires) {
+          const missingDependencies = requires.filter(req => !availableProvisions.has(req));
+          if (missingDependencies.length > 0) {
+            issues.push({
+              step: stepKey,
+              position: index,
+              missing_dependencies: missingDependencies
+            });
+          }
+        }
+        
+        // 제공하는 것들을 사용 가능한 목록에 추가
+        if (provides) {
+          provides.forEach(provision => availableProvisions.add(provision));
         }
       }
-    }
-
-    if (issues.length > 0) {
-      this.logger.warn('종속성 검증 실패:', issues);
-    }
+    });
 
     return issues;
   }
@@ -745,7 +726,6 @@ export class WorkflowBuilder {
     };
 
     // 실행 순서 계획
-    let currentGroup = 0;
     for (let i = 0; i < workflow.steps.length; i++) {
       const step = workflow.steps[i];
       
@@ -755,67 +735,40 @@ export class WorkflowBuilder {
       plan.execution_order.push({
         step_index: i,
         step: step,
-        parallel_group: parallelGroup ? currentGroup : null,
+        parallel_group: parallelGroup ? parallelGroup.indexOf(i) : null,
         estimated_time: this.estimateStepTime(step),
         resource_requirements: this.calculateStepResources(step)
       });
-
-      if (parallelGroup && i === Math.max(...parallelGroup)) {
-        currentGroup++;
-      }
     }
 
     // 체크포인트 설정
-    const checkpointInterval = Math.max(1, Math.floor(workflow.steps.length / 3));
-    for (let i = checkpointInterval; i < workflow.steps.length; i += checkpointInterval) {
-      plan.checkpoints.push({
-        step_index: i,
-        description: `중간 체크포인트 ${Math.floor(i / checkpointInterval)}`
-      });
-    }
+    const checkpointIndices = this.identifyCheckpoints(workflow.steps);
+    plan.checkpoints = checkpointIndices.map(index => ({
+      step_index: index,
+      description: `체크포인트 ${index + 1}`
+    }));
 
     return plan;
   }
 
   estimateExecutionTime(workflow) {
-    const stepTimes = {
-      'basic': 15,
-      'advanced': 30,
-      'ml_traditional': 60,
-      'deep_learning': 300,
-      'visualization': 10,
-      'preprocessing': 20,
-      'postprocessing': 10
-    };
-
     let totalTime = 0;
-    let parallelTime = 0;
     const parallelGroups = workflow.parallel_groups || [];
 
     for (let i = 0; i < workflow.steps.length; i++) {
       const step = workflow.steps[i];
-      const stepTime = stepTimes[step.type] || 30;
+      const stepTime = this.estimateStepTime(step);
 
-      // 병렬 그룹에 속하는지 확인
+      // 병렬 그룹에 속한 경우 최대 시간만 추가
       const parallelGroup = parallelGroups.find(group => group.includes(i));
-      
       if (parallelGroup) {
-        // 병렬 그룹 내에서 가장 긴 시간
-        const groupTimes = parallelGroup.map(idx => {
-          const groupStep = workflow.steps[idx];
-          return stepTimes[groupStep.type] || 30;
-        });
-        const maxGroupTime = Math.max(...groupTimes);
-        
-        if (parallelTime === 0) {
-          parallelTime = maxGroupTime;
+        if (i === parallelGroup[0]) { // 그룹의 첫 번째 단계인 경우
+          const groupTimes = parallelGroup.map(index => 
+            this.estimateStepTime(workflow.steps[index])
+          );
+          totalTime += Math.max(...groupTimes);
         }
-        
-        // 그룹의 마지막 단계인 경우 병렬 시간을 총 시간에 추가
-        if (i === Math.max(...parallelGroup)) {
-          totalTime += parallelTime;
-          parallelTime = 0;
-        }
+        // 그룹의 다른 단계들은 시간 추가하지 않음
       } else {
         totalTime += stepTime;
       }
@@ -824,72 +777,84 @@ export class WorkflowBuilder {
     return totalTime;
   }
 
-  calculateResourceRequirements(workflow) {
-    const requirements = {
-      memory_mb: 0,
-      cpu_cores: 1,
-      gpu_required: false,
-      disk_space_mb: 100,
-      network_required: false
-    };
-
-    for (const step of workflow.steps) {
-      const stepRequirements = this.calculateStepResources(step);
-      
-      requirements.memory_mb = Math.max(requirements.memory_mb, stepRequirements.memory_mb);
-      requirements.cpu_cores = Math.max(requirements.cpu_cores, stepRequirements.cpu_cores);
-      requirements.gpu_required = requirements.gpu_required || stepRequirements.gpu_required;
-      requirements.disk_space_mb += stepRequirements.disk_space_mb;
-      requirements.network_required = requirements.network_required || stepRequirements.network_required;
-    }
-
-    return requirements;
-  }
-
   estimateStepTime(step) {
-    const baseTimes = {
+    const baseTimeMap = {
       'basic': 15,
-      'advanced': 30,
-      'ml_traditional': 60,
-      'deep_learning': 300,
+      'advanced': 45,
+      'ml_traditional': 120,
+      'deep_learning': 600,
       'visualization': 10,
-      'preprocessing': 20,
-      'postprocessing': 10,
-      'timeseries': 45
+      'timeseries': 60,
+      'preprocessing': 30,
+      'postprocessing': 15
     };
 
-    let baseTime = baseTimes[step.type] || 30;
+    const baseTime = baseTimeMap[step.type] || 30;
 
     // 파라미터에 따른 시간 조정
+    let timeMultiplier = 1;
     if (step.params) {
-      if (step.params.epochs) {
-        baseTime *= Math.log10(step.params.epochs + 1);
-      }
-      if (step.params.n_clusters && step.params.n_clusters > 10) {
-        baseTime *= 1.5;
+      if (step.params.n_clusters && step.params.n_clusters > 5) {
+        timeMultiplier *= 1.5;
       }
       if (step.params.n_components && step.params.n_components > 10) {
-        baseTime *= 1.3;
+        timeMultiplier *= 1.3;
+      }
+      if (step.params.epochs && step.params.epochs > 50) {
+        timeMultiplier *= 2;
       }
     }
 
-    return Math.round(baseTime);
+    return Math.round(baseTime * timeMultiplier);
+  }
+
+  calculateResourceRequirements(workflow) {
+    let maxMemory = 0;
+    let maxCpu = 0;
+    let requiresGpu = false;
+    let totalDiskSpace = 0;
+
+    for (const step of workflow.steps) {
+      const stepResources = this.calculateStepResources(step);
+      maxMemory = Math.max(maxMemory, stepResources.memory_mb);
+      maxCpu = Math.max(maxCpu, stepResources.cpu_cores);
+      requiresGpu = requiresGpu || stepResources.gpu_required;
+      totalDiskSpace += stepResources.disk_space_mb;
+    }
+
+    return {
+      memory_mb: maxMemory,
+      cpu_cores: maxCpu,
+      gpu_required: requiresGpu,
+      disk_space_mb: totalDiskSpace,
+      network_required: workflow.steps.some(step => 
+        step.type === 'deep_learning' || step.method === 'download_data'
+      )
+    };
   }
 
   calculateStepResources(step) {
     const baseResources = {
+      memory_mb: 100,
+      cpu_cores: 1,
+      gpu_required: false,
+      disk_space_mb: 10
+    };
+
+    // 타입별 기본 리소스
+    const typeResourceMap = {
       'basic': { memory_mb: 100, cpu_cores: 1, gpu_required: false, disk_space_mb: 10 },
       'advanced': { memory_mb: 500, cpu_cores: 2, gpu_required: false, disk_space_mb: 50 },
       'ml_traditional': { memory_mb: 1000, cpu_cores: 4, gpu_required: false, disk_space_mb: 100 },
       'deep_learning': { memory_mb: 4000, cpu_cores: 8, gpu_required: true, disk_space_mb: 500 },
       'visualization': { memory_mb: 200, cpu_cores: 1, gpu_required: false, disk_space_mb: 20 },
-      'preprocessing': { memory_mb: 300, cpu_cores: 2, gpu_required: false, disk_space_mb: 30 },
-      'postprocessing': { memory_mb: 100, cpu_cores: 1, gpu_required: false, disk_space_mb: 10 },
-      'timeseries': { memory_mb: 400, cpu_cores: 2, gpu_required: false, disk_space_mb: 40 }
+      'timeseries': { memory_mb: 300, cpu_cores: 2, gpu_required: false, disk_space_mb: 30 },
+      'preprocessing': { memory_mb: 200, cpu_cores: 2, gpu_required: false, disk_space_mb: 20 },
+      'postprocessing': { memory_mb: 100, cpu_cores: 1, gpu_required: false, disk_space_mb: 10 }
     };
 
-    const resources = baseResources[step.type] || baseResources['basic'];
-    
+    const resources = typeResourceMap[step.type] || baseResources;
+
     // 파라미터에 따른 리소스 조정
     if (step.params) {
       if (step.params.n_estimators && step.params.n_estimators > 100) {
@@ -899,31 +864,62 @@ export class WorkflowBuilder {
       if (step.params.batch_size && step.params.batch_size > 32) {
         resources.memory_mb *= 1.3;
       }
+      if (step.params.epochs && step.params.epochs > 100) {
+        resources.memory_mb *= 2;
+        resources.disk_space_mb *= 1.5;
+      }
     }
 
     return resources;
   }
 
+  identifyCheckpoints(steps) {
+    const checkpoints = [];
+    
+    // 중요한 단계 후에 체크포인트 설정
+    steps.forEach((step, index) => {
+      if (step.type === 'ml_traditional' || 
+          step.type === 'deep_learning' || 
+          (step.type === 'advanced' && step.method === 'feature_engineering')) {
+        checkpoints.push(index);
+      }
+    });
+
+    // 최소한 중간에 하나의 체크포인트
+    if (checkpoints.length === 0 && steps.length > 3) {
+      checkpoints.push(Math.floor(steps.length / 2));
+    }
+
+    return checkpoints;
+  }
+
   // 유틸리티 메서드들
-  getStepKeywords(step) {
-    const keywordMap = {
-      'basic': ['basic', 'stats', 'descriptive', 'correlation', 'distribution'],
-      'advanced': ['advanced', 'pca', 'clustering', 'outlier', 'feature'],
-      'ml_traditional': ['ml', 'machine', 'learning', 'regression', 'classification'],
-      'deep_learning': ['deep', 'neural', 'cnn', 'rnn', 'transformer'],
-      'visualization': ['plot', 'chart', 'graph', 'visual', 'scatter', 'heatmap'],
-      'timeseries': ['time', 'series', 'trend', 'seasonal', 'forecast'],
-      'preprocessing': ['preprocess', 'clean', 'normalize', 'scale'],
-      'postprocessing': ['report', 'summary', 'export', 'save']
+  calculateWorkflowComplexity(workflow) {
+    const complexityScores = {
+      'basic': 0.2,
+      'advanced': 0.5,
+      'ml_traditional': 0.7,
+      'deep_learning': 0.9,
+      'visualization': 0.1,
+      'timeseries': 0.6,
+      'preprocessing': 0.3,
+      'postprocessing': 0.2
     };
 
-    return keywordMap[step.type] || [];
+    let totalComplexity = 0;
+    for (const step of workflow.steps) {
+      totalComplexity += complexityScores[step.type] || 0.3;
+    }
+
+    return Math.min(totalComplexity / workflow.steps.length, 1.0);
   }
 
   isWorkflowCompatibleWithDataType(workflow, dataType) {
     for (const step of workflow.steps) {
       const compatibility = this.stepCompatibility[step.type];
-      if (compatibility && !compatibility.data_types.includes(dataType) && !compatibility.data_types.includes('all')) {
+      if (compatibility && 
+          !compatibility.data_types.includes(dataType) && 
+          !compatibility.data_types.includes('all')) {
         return false;
       }
     }
@@ -931,188 +927,135 @@ export class WorkflowBuilder {
   }
 
   hasMatchingParameters(workflow, parameters) {
+    if (!parameters || Object.keys(parameters).length === 0) return false;
+
     return workflow.steps.some(step => {
       if (!step.params) return false;
       
       return Object.keys(step.params).some(param =>
-        parameters.model[param] !== undefined ||
-        parameters.visualization[param] !== undefined ||
-        parameters.data[param] !== undefined
+        parameters[param] !== undefined
       );
     });
   }
 
-  matchesPreprocessingRequirements(workflow, preprocessing) {
-    if (!preprocessing || preprocessing.length === 0) return true;
-    
-    return preprocessing.some(req =>
-      workflow.steps.some(step =>
-        step.method && step.method.includes(req.replace('_', ''))
-      )
-    );
-  }
-
-  customizeParameters(workflow, intentAnalysis, queryAnalysis) {
-    const { parameters } = queryAnalysis;
-    
-    for (const step of workflow.steps) {
-      if (step.params) {
-        // 모델 파라미터 적용
-        Object.assign(step.params, parameters.model);
-        
-        // 시각화 파라미터 적용
-        if (step.type === 'visualization') {
-          Object.assign(step.params, parameters.visualization);
-        }
-        
-        // 데이터 파라미터 적용
-        if (step.type === 'preprocessing' || step.type === 'data') {
-          Object.assign(step.params, parameters.data);
-        }
-      }
-    }
-  }
-
-  adjustSteps(workflow, intentAnalysis, queryAnalysis) {
-    // 복잡도에 따른 단계 조정
-    if (intentAnalysis.complexity < 0.3) {
-      // 간단한 분석만 유지
-      workflow.steps = workflow.steps.filter(step =>
-        step.type === 'basic' || step.type === 'visualization'
-      );
-    } else if (intentAnalysis.complexity > 0.8) {
-      // 추가 분석 단계 삽입
-      const additionalSteps = this.getAdditionalStepsForComplexAnalysis();
-      workflow.steps.push(...additionalSteps);
-    }
-
-    // 데이터 타입에 따른 조정
-    const dataType = queryAnalysis.data_requirements.data_type;
-    if (dataType === 'time_series') {
-      // 시계열 분석 단계 추가
-      const timeseriesSteps = this.getTimeseriesSteps();
-      workflow.steps.unshift(...timeseriesSteps);
-    }
-  }
-
-  getAdditionalStepsForComplexAnalysis() {
-    return [
-      {
-        type: 'advanced',
-        method: 'feature_importance',
-        params: {}
-      },
-      {
-        type: 'postprocessing',
-        method: 'sensitivity_analysis',
-        params: {}
-      },
-      {
-        type: 'visualization',
-        method: 'interactive.plotly',
-        params: {
-          chart_type: 'dashboard'
-        }
-      }
-    ];
-  }
-
-  getTimeseriesSteps() {
-    return [
-      {
-        type: 'timeseries',
-        method: 'trend_analysis',
-        params: {}
-      },
-      {
-        type: 'timeseries',
-        method: 'seasonality',
-        params: {}
-      }
-    ];
-  }
-
-  extractMethodParameters(method, intentAnalysis, queryAnalysis) {
-    const { parameters } = queryAnalysis;
-    const baseParams = {};
-
-    // 메서드별 기본 파라미터 설정
-    if (method.includes('clustering')) {
-      baseParams.n_clusters = parameters.model.n_clusters || 'auto';
-      baseParams.random_state = parameters.model.random_state || 42;
-    }
-    
-    if (method.includes('pca')) {
-      baseParams.n_components = parameters.model.n_components || 3;
-      baseParams.whiten = parameters.model.whiten || false;
-    }
-    
-    if (method.includes('regression') || method.includes('classification')) {
-      baseParams.test_size = parameters.model.test_size || 0.2;
-      baseParams.random_state = parameters.model.random_state || 42;
-      baseParams.cross_validation = parameters.model.cross_validation || false;
-    }
-
-    if (method.includes('ensemble')) {
-      baseParams.n_estimators = parameters.model.n_estimators || 100;
-      baseParams.voting = parameters.model.voting || 'hard';
-    }
-
-    if (method.includes('deep_learning')) {
-      baseParams.epochs = parameters.model.epochs || 50;
-      baseParams.batch_size = parameters.model.batch_size || 32;
-      baseParams.learning_rate = parameters.model.learning_rate || 0.001;
-    }
-
-    return baseParams;
-  }
-
   selectVisualizationMethod(intentAnalysis, queryAnalysis) {
-    const { keywords } = intentAnalysis;
-    const { data_requirements } = queryAnalysis;
-    
-    // PCA 결과가 있으면 3D 시각화
-    if (keywords.analysis?.some(a => a.type === 'pca')) {
-      return '3d.scatter_3d';
-    }
-    
-    // 상관관계 분석이 있으면 히트맵
-    if (keywords.analysis?.some(a => a.type === 'correlation')) {
-      return '2d.heatmap';
+    const { suggested_methods, keywords } = intentAnalysis;
+    const { data_requirements = {} } = queryAnalysis;
+
+    // 키워드 기반 시각화 선택
+    if (keywords && keywords.analysis) {
+      for (const analysis of keywords.analysis) {
+        if (analysis.category === 'visualization') {
+          return analysis.type;
+        }
+      }
     }
 
-    // 시계열 데이터면 선 그래프
-    if (data_requirements.data_type === 'time_series') {
-      return '2d.line';
+    // 분석 타입에 따른 자동 선택
+    if (suggested_methods.includes('basic.correlation')) {
+      return 'heatmap';
+    }
+    if (suggested_methods.includes('advanced.clustering')) {
+      return 'scatter';
+    }
+    if (suggested_methods.includes('ml_traditional.classification')) {
+      return 'confusion_matrix';
+    }
+    if (suggested_methods.includes('ml_traditional.regression')) {
+      return 'scatter';
     }
 
-    // 클러스터링이 있으면 색상으로 구분된 산점도
-    if (keywords.analysis?.some(a => a.type === 'clustering')) {
-      return '2d.scatter';
+    // 데이터 타입에 따른 기본 선택
+    switch (data_requirements.type) {
+      case 'time_series':
+        return 'line';
+      case 'categorical':
+        return 'bar';
+      default:
+        return 'scatter';
     }
-    
-    // 기본적으로 산점도
-    return '2d.scatter';
   }
 
   extractVisualizationParameters(queryAnalysis) {
-    const { parameters, column_references } = queryAnalysis;
-    const vizParams = parameters.visualization || {};
-
-    // 컬럼 참조가 있으면 자동으로 설정
-    if (column_references.explicit.length >= 2) {
-      vizParams.x_column = column_references.explicit[0].column;
-      vizParams.y_column = column_references.explicit[1].column;
-    }
-
-    if (column_references.explicit.length >= 3) {
-      vizParams.color_by = column_references.explicit[2].column;
-    }
-
-    return vizParams;
+    const { parameters = {} } = queryAnalysis;
+    
+    return {
+      figsize: [10, 8],
+      title: parameters.title || '',
+      x_column: parameters.x_column || null,
+      y_column: parameters.y_column || null,
+      color_column: parameters.color_column || null
+    };
   }
 
-  buildFallbackWorkflow(intentAnalysis, queryAnalysis) {
+  extractMethodParameters(method, intentAnalysis, queryAnalysis) {
+    const [type, methodName] = method.split('.');
+    const { parameters = {} } = queryAnalysis;
+    const intentParams = intentAnalysis.parameters || {};
+
+    const methodParams = {};
+
+    // 타입별 기본 파라미터 설정
+    switch (type) {
+      case 'advanced':
+        if (methodName === 'clustering') {
+          methodParams.n_clusters = parameters.n_clusters || intentParams.n_clusters || 3;
+          methodParams.algorithm = parameters.algorithm || 'kmeans';
+        } else if (methodName === 'pca') {
+          methodParams.n_components = parameters.n_components || intentParams.n_components || 2;
+        } else if (methodName === 'outlier_detection') {
+          methodParams.method = parameters.outlier_method || 'iqr';
+          methodParams.threshold = parameters.threshold || 1.5;
+        }
+        break;
+
+      case 'ml_traditional':
+        methodParams.test_size = parameters.test_size || intentParams.test_size || 0.2;
+        methodParams.random_state = parameters.random_state || 42;
+        methodParams.cross_validation = parameters.cross_validation || true;
+        
+        if (methodName === 'classification') {
+          methodParams.algorithm = parameters.algorithm || 'random_forest';
+        } else if (methodName === 'regression') {
+          methodParams.algorithm = parameters.algorithm || 'linear';
+        }
+        break;
+
+      case 'deep_learning':
+        methodParams.epochs = parameters.epochs || 50;
+        methodParams.batch_size = parameters.batch_size || 32;
+        methodParams.learning_rate = parameters.learning_rate || 0.001;
+        break;
+
+      case 'visualization':
+        Object.assign(methodParams, this.extractVisualizationParameters(queryAnalysis));
+        break;
+    }
+
+    return methodParams;
+  }
+
+  findDuplicateSteps(steps) {
+    const duplicates = [];
+    const seen = new Map();
+
+    steps.forEach((step, index) => {
+      const key = `${step.type}.${step.method}`;
+      if (seen.has(key)) {
+        duplicates.push({
+          original_index: seen.get(key),
+          duplicate_index: index,
+          step: key
+        });
+      } else {
+        seen.set(key, index);
+      }
+    });
+
+    return duplicates;
+  }
+
+  getFallbackWorkflow() {
     return {
       workflow: {
         name: 'fallback_workflow',
@@ -1130,7 +1073,7 @@ export class WorkflowBuilder {
           },
           {
             type: 'visualization',
-            method: '2d.scatter',
+            method: 'scatter',
             params: {}
           }
         ]
@@ -1154,7 +1097,7 @@ export class WorkflowBuilder {
           },
           {
             step_index: 2,
-            step: { type: 'visualization', method: '2d.scatter', params: {} },
+            step: { type: 'visualization', method: 'scatter', params: {} },
             parallel_group: null,
             estimated_time: 10,
             resource_requirements: { memory_mb: 200, cpu_cores: 1, gpu_required: false, disk_space_mb: 20 }
@@ -1165,7 +1108,7 @@ export class WorkflowBuilder {
         checkpoints: [
           {
             step_index: 1,
-            description: '중간 체크포인트 1'
+            description: '중간 체크포인트'
           }
         ]
       },
@@ -1249,7 +1192,8 @@ export class WorkflowBuilder {
       suggestions.push({
         type: 'parallelization',
         message: `${parallelGroups.length}개의 병렬 처리 그룹을 식별했습니다. 실행 시간을 단축할 수 있습니다.`,
-        groups: parallelGroups
+        groups: parallelGroups,
+        estimated_time_saving: this.calculateParallelTimeSaving(workflow, parallelGroups)
       });
     }
 
@@ -1269,82 +1213,290 @@ export class WorkflowBuilder {
       suggestions.push({
         type: 'visualization_optimization',
         message: '많은 시각화 단계가 있습니다. 대시보드 형태로 통합하는 것을 고려하세요.',
-        count: vizSteps.length
+        current_count: vizSteps.length,
+        suggested_approach: 'dashboard'
+      });
+    }
+
+    // 리소스 최적화 제안
+    const resourceReq = this.calculateResourceRequirements(workflow);
+    if (resourceReq.memory_mb > 8000) {
+      suggestions.push({
+        type: 'resource_optimization',
+        message: '메모리 사용량이 높습니다. 배치 크기를 줄이거나 데이터를 청크 단위로 처리하는 것을 고려하세요.',
+        current_memory: resourceReq.memory_mb,
+        optimization_techniques: ['batch_processing', 'data_chunking', 'memory_mapping']
+      });
+    }
+
+    // 단계 순서 최적화 제안
+    const orderOptimization = this.analyzeStepOrder(workflow.steps);
+    if (orderOptimization.canOptimize) {
+      suggestions.push({
+        type: 'step_order_optimization',
+        message: '단계 순서를 최적화하여 중간 결과를 더 효율적으로 활용할 수 있습니다.',
+        current_order: orderOptimization.current,
+        suggested_order: orderOptimization.suggested
       });
     }
 
     return suggestions;
   }
 
-  findDuplicateSteps(steps) {
-    const stepCounts = {};
-    const duplicates = [];
-
-    for (const step of steps) {
-      const stepKey = `${step.type}.${step.method}`;
-      stepCounts[stepKey] = (stepCounts[stepKey] || 0) + 1;
+  calculateParallelTimeSaving(workflow, parallelGroups) {
+    let totalSaving = 0;
+    
+    for (const group of parallelGroups) {
+      const groupTimes = group.map(index => 
+        this.estimateStepTime(workflow.steps[index])
+      );
+      const sequentialTime = groupTimes.reduce((sum, time) => sum + time, 0);
+      const parallelTime = Math.max(...groupTimes);
+      totalSaving += sequentialTime - parallelTime;
     }
-
-    for (const [stepKey, count] of Object.entries(stepCounts)) {
-      if (count > 1) {
-        duplicates.push({ step: stepKey, count: count });
-      }
-    }
-
-    return duplicates;
+    
+    return totalSaving;
   }
 
-  // 워크플로우 실행 시뮬레이션
-  simulateExecution(workflow) {
-    const simulation = {
-      total_time: 0,
-      memory_peak: 0,
-      timeline: []
-    };
+  analyzeStepOrder(steps) {
+    // 간단한 휴리스틱: 데이터 전처리 -> 분석 -> 시각화 -> 후처리 순서 확인
+    const typeOrder = ['preprocessing', 'basic', 'advanced', 'ml_traditional', 'deep_learning', 'visualization', 'postprocessing'];
+    
+    let canOptimize = false;
+    const currentOrder = steps.map(step => step.type);
+    const suggestedOrder = [];
 
-    let currentTime = 0;
-    let currentMemory = 0;
-
-    for (let i = 0; i < workflow.steps.length; i++) {
-      const step = workflow.steps[i];
-      const stepTime = this.estimateStepTime(step);
-      const stepResources = this.calculateStepResources(step);
-
-      // 병렬 그룹 확인
-      const parallelGroup = workflow.parallel_groups?.find(group => group.includes(i));
-      
-      if (!parallelGroup) {
-        currentTime += stepTime;
-        currentMemory += stepResources.memory_mb;
-      } else {
-        // 병렬 그룹의 첫 번째 단계인 경우에만 시간 추가
-        if (i === Math.min(...parallelGroup)) {
-          const groupTime = Math.max(...parallelGroup.map(idx =>
-            this.estimateStepTime(workflow.steps[idx])
-          ));
-          currentTime += groupTime;
-        }
-        currentMemory += stepResources.memory_mb;
+    // 현재 순서가 권장 순서와 다른지 확인
+    let lastTypeIndex = -1;
+    for (const step of steps) {
+      const typeIndex = typeOrder.indexOf(step.type);
+      if (typeIndex < lastTypeIndex) {
+        canOptimize = true;
+        break;
       }
+      lastTypeIndex = typeIndex;
+    }
 
-      simulation.memory_peak = Math.max(simulation.memory_peak, currentMemory);
-      
-      simulation.timeline.push({
-        step_index: i,
-        step_name: `${step.type}.${step.method}`,
-        start_time: currentTime - stepTime,
-        end_time: currentTime,
-        memory_usage: currentMemory,
-        parallel_group: parallelGroup ? parallelGroup.indexOf(i) : null
+    if (canOptimize) {
+      // 타입별로 그룹화하여 권장 순서 생성
+      const typeGroups = {};
+      steps.forEach((step, index) => {
+        if (!typeGroups[step.type]) {
+          typeGroups[step.type] = [];
+        }
+        typeGroups[step.type].push(index);
       });
 
-      // 단계 완료 후 메모리 해제 (시각화 제외)
-      if (step.type !== 'visualization') {
-        currentMemory = Math.max(0, currentMemory - stepResources.memory_mb * 0.5);
+      for (const type of typeOrder) {
+        if (typeGroups[type]) {
+          suggestedOrder.push(...typeGroups[type]);
+        }
       }
     }
 
-    simulation.total_time = currentTime;
-    return simulation;
+    return {
+      canOptimize,
+      current: currentOrder,
+      suggested: canOptimize ? suggestedOrder : null
+    };
+  }
+
+  // 워크플로우 내보내기/가져오기
+  exportWorkflow(workflow, format = 'json') {
+    switch (format) {
+      case 'json':
+        return JSON.stringify(workflow, null, 2);
+      case 'yaml':
+        // YAML 변환 로직 (실제로는 yaml 라이브러리 필요)
+        return this.convertToYaml(workflow);
+      default:
+        throw new Error(`지원하지 않는 형식: ${format}`);
+    }
+  }
+
+  convertToYaml(workflow) {
+    // 간단한 YAML 변환 (실제로는 yaml 라이브러리 사용 권장)
+    let yaml = `name: ${workflow.name}\n`;
+    yaml += `description: "${workflow.description}"\n`;
+    yaml += `steps:\n`;
+    
+    workflow.steps.forEach((step, index) => {
+      yaml += `  - type: ${step.type}\n`;
+      yaml += `    method: ${step.method}\n`;
+      if (step.params && Object.keys(step.params).length > 0) {
+        yaml += `    params:\n`;
+        Object.entries(step.params).forEach(([key, value]) => {
+          yaml += `      ${key}: ${JSON.stringify(value)}\n`;
+        });
+      }
+    });
+    
+    return yaml;
+  }
+
+  async importWorkflow(workflowData, format = 'json') {
+    let workflow;
+    
+    switch (format) {
+      case 'json':
+        workflow = typeof workflowData === 'string' ? 
+          JSON.parse(workflowData) : workflowData;
+        break;
+      case 'yaml':
+        // YAML 파싱 로직 (실제로는 yaml 라이브러리 필요)
+        workflow = this.parseYaml(workflowData);
+        break;
+      default:
+        throw new Error(`지원하지 않는 형식: ${format}`);
+    }
+
+    // 가져온 워크플로우 검증
+    const validation = this.validateWorkflow(workflow);
+    if (!validation.isValid) {
+      throw new Error(`워크플로우 검증 실패: ${validation.errors.join(', ')}`);
+    }
+
+    return workflow;
+  }
+
+  parseYaml(yamlString) {
+    // 간단한 YAML 파서 (실제로는 yaml 라이브러리 사용 권장)
+    // 이는 매우 기본적인 구현입니다
+    const lines = yamlString.split('\n');
+    const workflow = { steps: [] };
+    
+    let currentStep = null;
+    let inParams = false;
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('name:')) {
+        workflow.name = trimmed.split(':')[1].trim();
+      } else if (trimmed.startsWith('description:')) {
+        workflow.description = trimmed.split(':')[1].trim().replace(/"/g, '');
+      } else if (trimmed.startsWith('- type:')) {
+        if (currentStep) {
+          workflow.steps.push(currentStep);
+        }
+        currentStep = { type: trimmed.split(':')[1].trim(), params: {} };
+        inParams = false;
+      } else if (trimmed.startsWith('method:') && currentStep) {
+        currentStep.method = trimmed.split(':')[1].trim();
+      } else if (trimmed === 'params:') {
+        inParams = true;
+      } else if (inParams && trimmed.includes(':')) {
+        const [key, value] = trimmed.split(':');
+        try {
+          currentStep.params[key.trim()] = JSON.parse(value.trim());
+        } catch {
+          currentStep.params[key.trim()] = value.trim();
+        }
+      }
+    }
+    
+    if (currentStep) {
+      workflow.steps.push(currentStep);
+    }
+    
+    return workflow;
+  }
+
+  // 통계 및 모니터링
+  getWorkflowStatistics(workflow) {
+    const stats = {
+      total_steps: workflow.steps.length,
+      step_types: {},
+      estimated_resources: this.calculateResourceRequirements(workflow),
+      estimated_time: this.estimateExecutionTime(workflow),
+      complexity_score: this.calculateWorkflowComplexity(workflow)
+    };
+
+    // 단계 타입별 통계
+    workflow.steps.forEach(step => {
+      stats.step_types[step.type] = (stats.step_types[step.type] || 0) + 1;
+    });
+
+    return stats;
+  }
+
+  // 워크플로우 템플릿 관리
+  async saveWorkflowAsTemplate(workflow, templateName, category = 'custom') {
+    try {
+      if (!this.workflowTemplates[category]) {
+        this.workflowTemplates[category] = {};
+      }
+
+      const template = {
+        ...workflow,
+        name: templateName,
+        template: true,
+        created_at: new Date().toISOString(),
+        usage_count: 0
+      };
+
+      this.workflowTemplates[category][templateName] = template;
+
+      // 템플릿 파일에 저장 (실제 구현에서는 파일 시스템에 저장)
+      await this.saveTemplatesToFile();
+
+      this.logger.info(`워크플로우 템플릿 저장 완료: ${templateName}`);
+      return template;
+
+    } catch (error) {
+      this.logger.error('워크플로우 템플릿 저장 실패:', error);
+      throw error;
+    }
+  }
+
+  async saveTemplatesToFile() {
+    try {
+      const templatesJson = JSON.stringify(this.workflowTemplates, null, 2);
+      await fs.writeFile('./config/pipeline-templates.json', templatesJson, 'utf-8');
+    } catch (error) {
+      this.logger.warn('템플릿 파일 저장 실패:', error);
+    }
+  }
+
+  listAvailableTemplates() {
+    const templates = [];
+    
+    for (const [category, workflows] of Object.entries(this.workflowTemplates)) {
+      for (const [name, workflow] of Object.entries(workflows)) {
+        templates.push({
+          name: name,
+          category: category,
+          description: workflow.description,
+          steps: workflow.steps.length,
+          complexity: this.calculateWorkflowComplexity(workflow),
+          usage_count: workflow.usage_count || 0
+        });
+      }
+    }
+    
+    return templates.sort((a, b) => b.usage_count - a.usage_count);
+  }
+
+  // 디버깅 및 로깅
+  debugWorkflow(workflow) {
+    const debug = {
+      workflow_info: {
+        name: workflow.name,
+        steps: workflow.steps.length,
+        has_parallel_groups: !!workflow.parallel_groups
+      },
+      step_analysis: workflow.steps.map((step, index) => ({
+        index: index,
+        type: step.type,
+        method: step.method,
+        has_params: !!step.params && Object.keys(step.params).length > 0,
+        estimated_time: this.estimateStepTime(step),
+        resource_requirements: this.calculateStepResources(step)
+      })),
+      dependencies: this.validateDependencies(workflow.steps),
+      optimization_opportunities: this.suggestOptimizations(workflow)
+    };
+
+    this.logger.debug('워크플로우 디버그 정보:', debug);
+    return debug;
   }
 }
