@@ -1,236 +1,1050 @@
 {
   "common_workflows": {
-    "basic_analysis": {
-      "name": "기본 데이터 분석",
-      "description": "기본 통계 → 상관관계 → 분포 분석",
+    "data_exploration": {
+      "name": "데이터 탐색 워크플로우",
+      "description": "새로운 데이터셋에 대한 기본적인 탐색적 데이터 분석",
+      "category": "exploratory",
+      "complexity": 0.4,
+      "estimated_time": 300,
       "steps": [
         {
-          "type": "basic",
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "데이터 로드",
+          "params": {
+            "auto_detect_type": true,
+            "handle_encoding": true
+          },
+          "outputs": ["raw_data"],
+          "required": true
+        },
+        {
+          "order": 2,
+          "type": "data",
+          "method": "validate",
+          "description": "데이터 검증",
+          "params": {
+            "check_missing": true,
+            "check_duplicates": true,
+            "check_data_types": true
+          },
+          "requires": ["raw_data"],
+          "outputs": ["validation_report", "cleaned_data"],
+          "required": true
+        },
+        {
+          "order": 3,
+          "type": "analysis",
           "method": "descriptive_stats",
-          "params": {}
+          "description": "기술통계 분석",
+          "params": {
+            "include_quartiles": true,
+            "include_skewness": true,
+            "include_kurtosis": true
+          },
+          "requires": ["cleaned_data"],
+          "outputs": ["descriptive_stats"],
+          "required": true
         },
         {
-          "type": "basic",
+          "order": 4,
+          "type": "analysis",
           "method": "correlation",
-          "params": {}
+          "description": "상관관계 분석",
+          "params": {
+            "method": "pearson",
+            "heatmap": true
+          },
+          "requires": ["cleaned_data"],
+          "outputs": ["correlation_matrix", "correlation_heatmap"],
+          "required": false
         },
         {
-          "type": "basic",
+          "order": 5,
+          "type": "visualization",
+          "method": "basic_charts",
+          "description": "기본 시각화",
+          "params": {
+            "chart_type": "auto",
+            "interactive": false
+          },
+          "requires": ["cleaned_data", "descriptive_stats"],
+          "outputs": ["basic_plots"],
+          "required": false
+        },
+        {
+          "order": 6,
+          "type": "analysis",
           "method": "distribution",
-          "params": {}
+          "description": "분포 분석",
+          "params": {
+            "plot_type": "all",
+            "test_normality": true
+          },
+          "requires": ["cleaned_data"],
+          "outputs": ["distribution_plots", "normality_tests"],
+          "required": false
         }
-      ]
+      ],
+      "output_summary": {
+        "reports": ["validation_report", "descriptive_stats", "normality_tests"],
+        "visualizations": ["correlation_heatmap", "basic_plots", "distribution_plots"],
+        "data": ["cleaned_data", "correlation_matrix"]
+      }
     },
-    "correlation_feature_engineering": {
-      "name": "상관관계 기반 피처 엔지니어링",
-      "description": "상관관계 분석 → 파생변수 생성",
+    "data_quality_check": {
+      "name": "데이터 품질 검사",
+      "description": "데이터의 품질과 일관성을 확인하는 워크플로우",
+      "category": "quality_assurance",
+      "complexity": 0.3,
+      "estimated_time": 180,
       "steps": [
         {
-          "type": "basic",
-          "method": "correlation",
-          "params": {}
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "데이터 로드",
+          "params": {
+            "validate_on_load": true
+          },
+          "outputs": ["raw_data"],
+          "required": true
         },
         {
-          "type": "advanced",
-          "method": "feature_engineering",
+          "order": 2,
+          "type": "data",
+          "method": "validate",
+          "description": "기본 검증",
           "params": {
-            "use_correlation": true
-          }
-        }
-      ]
-    },
-    "outlier_cleaning": {
-      "name": "이상치 탐지 및 제거",
-      "description": "이상치 탐지 → 데이터 정제 → 기본 분석",
-      "steps": [
+            "comprehensive_check": true,
+            "generate_report": true
+          },
+          "requires": ["raw_data"],
+          "outputs": ["basic_validation"],
+          "required": true
+        },
         {
-          "type": "advanced",
+          "order": 3,
+          "type": "analysis",
           "method": "outlier_detection",
-          "params": {}
+          "description": "이상치 탐지",
+          "params": {
+            "method": "iqr",
+            "visualize": true
+          },
+          "requires": ["raw_data"],
+          "outputs": ["outlier_report", "outlier_plots"],
+          "required": true
         },
         {
-          "type": "basic",
-          "method": "descriptive_stats",
+          "order": 4,
+          "type": "analysis",
+          "method": "frequency",
+          "description": "빈도 분석",
           "params": {
-            "after_cleaning": true
-          }
+            "include_percentages": true,
+            "check_rare_values": true
+          },
+          "requires": ["raw_data"],
+          "outputs": ["frequency_analysis"],
+          "required": false
         }
-      ]
+      ],
+      "output_summary": {
+        "reports": ["basic_validation", "outlier_report", "frequency_analysis"],
+        "visualizations": ["outlier_plots"],
+        "quality_score": "calculated"
+      }
+    },
+    "quick_analysis": {
+      "name": "빠른 분석",
+      "description": "데이터에 대한 빠른 개요 분석",
+      "category": "quick",
+      "complexity": 0.2,
+      "estimated_time": 60,
+      "steps": [
+        {
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "데이터 로드",
+          "params": {
+            "quick_mode": true
+          },
+          "outputs": ["data"],
+          "required": true
+        },
+        {
+          "order": 2,
+          "type": "analysis",
+          "method": "descriptive_stats",
+          "description": "기본 통계",
+          "params": {
+            "quick_summary": true
+          },
+          "requires": ["data"],
+          "outputs": ["summary_stats"],
+          "required": true
+        },
+        {
+          "order": 3,
+          "type": "visualization",
+          "method": "basic_charts",
+          "description": "기본 차트",
+          "params": {
+            "chart_type": "auto",
+            "quick_mode": true
+          },
+          "requires": ["data"],
+          "outputs": ["quick_charts"],
+          "required": false
+        }
+      ],
+      "output_summary": {
+        "reports": ["summary_stats"],
+        "visualizations": ["quick_charts"]
+      }
     }
   },
   "ml_workflows": {
-    "pca_visualization": {
-      "name": "PCA 차원축소 시각화",
-      "description": "PCA 차원축소 → 3D 시각화",
+    "classification_pipeline": {
+      "name": "분류 모델 파이프라인",
+      "description": "분류 문제를 위한 완전한 머신러닝 파이프라인",
+      "category": "supervised_learning",
+      "complexity": 0.8,
+      "estimated_time": 900,
       "steps": [
         {
-          "type": "advanced",
-          "method": "pca",
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "데이터 로드",
           "params": {
-            "n_components": 3
-          }
+            "target_column_required": true
+          },
+          "outputs": ["raw_data"],
+          "required": true
         },
         {
-          "type": "visualization",
-          "method": "3d.scatter_3d",
+          "order": 2,
+          "type": "data",
+          "method": "validate",
+          "description": "데이터 검증",
           "params": {
-            "use_pca_result": true
-          }
+            "check_target_distribution": true
+          },
+          "requires": ["raw_data"],
+          "outputs": ["validation_report", "clean_data"],
+          "required": true
+        },
+        {
+          "order": 3,
+          "type": "analysis",
+          "method": "feature_engineering",
+          "description": "특성 엔지니어링",
+          "params": {
+            "operations": ["scaling", "encoding"],
+            "auto_feature_selection": true
+          },
+          "requires": ["clean_data"],
+          "outputs": ["processed_features", "feature_info"],
+          "required": true
+        },
+        {
+          "order": 4,
+          "type": "ml",
+          "method": "classification",
+          "description": "분류 모델 훈련",
+          "params": {
+            "algorithm": "random_forest",
+            "cross_validation": true,
+            "hyperparameter_tuning": false
+          },
+          "requires": ["processed_features"],
+          "outputs": ["trained_model", "predictions", "metrics"],
+          "required": true
+        },
+        {
+          "order": 5,
+          "type": "ml",
+          "method": "evaluate",
+          "description": "모델 평가",
+          "params": {
+            "detailed_metrics": true,
+            "feature_importance": true
+          },
+          "requires": ["trained_model", "predictions"],
+          "outputs": ["evaluation_report", "feature_importance"],
+          "required": true
+        },
+        {
+          "order": 6,
+          "type": "visualization",
+          "method": "ml_visualization",
+          "description": "결과 시각화",
+          "params": {
+            "visualization_type": "confusion_matrix",
+            "show_metrics": true
+          },
+          "requires": ["predictions", "evaluation_report"],
+          "outputs": ["ml_plots"],
+          "required": false
         }
-      ]
+      ],
+      "output_summary": {
+        "model": ["trained_model"],
+        "reports": ["validation_report", "evaluation_report", "feature_importance"],
+        "visualizations": ["ml_plots"],
+        "data": ["processed_features"]
+      }
     },
-    "clustering_analysis": {
-      "name": "클러스터링 분석",
-      "description": "클러스터링 → 시각화 → 결과 분석",
+    "regression_pipeline": {
+      "name": "회귀 모델 파이프라인",
+      "description": "회귀 문제를 위한 완전한 머신러닝 파이프라인",
+      "category": "supervised_learning",
+      "complexity": 0.7,
+      "estimated_time": 720,
       "steps": [
         {
-          "type": "ml_traditional",
-          "method": "unsupervised.clustering.kmeans",
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "데이터 로드",
           "params": {
-            "n_clusters": "auto"
-          }
+            "target_column_required": true,
+            "numeric_target": true
+          },
+          "outputs": ["raw_data"],
+          "required": true
         },
         {
+          "order": 2,
+          "type": "data",
+          "method": "validate",
+          "description": "데이터 검증",
+          "params": {
+            "check_linearity": true,
+            "check_outliers": true
+          },
+          "requires": ["raw_data"],
+          "outputs": ["validation_report", "clean_data"],
+          "required": true
+        },
+        {
+          "order": 3,
+          "type": "analysis",
+          "method": "feature_engineering",
+          "description": "특성 엔지니어링",
+          "params": {
+            "operations": ["scaling", "polynomial"],
+            "polynomial_degree": 2
+          },
+          "requires": ["clean_data"],
+          "outputs": ["processed_features", "feature_info"],
+          "required": true
+        },
+        {
+          "order": 4,
+          "type": "ml",
+          "method": "regression",
+          "description": "회귀 모델 훈련",
+          "params": {
+            "algorithm": "random_forest",
+            "cross_validation": true
+          },
+          "requires": ["processed_features"],
+          "outputs": ["trained_model", "predictions", "metrics"],
+          "required": true
+        },
+        {
+          "order": 5,
+          "type": "ml",
+          "method": "evaluate",
+          "description": "모델 평가",
+          "params": {
+            "residual_analysis": true,
+            "feature_importance": true
+          },
+          "requires": ["trained_model", "predictions"],
+          "outputs": ["evaluation_report", "residual_plots"],
+          "required": true
+        },
+        {
+          "order": 6,
           "type": "visualization",
-          "method": "2d.scatter",
+          "method": "ml_visualization",
+          "description": "결과 시각화",
           "params": {
-            "color_by_cluster": true
-          }
+            "visualization_type": "residual_plots",
+            "show_metrics": true
+          },
+          "requires": ["predictions", "evaluation_report"],
+          "outputs": ["ml_plots"],
+          "required": false
+        }
+      ],
+      "output_summary": {
+        "model": ["trained_model"],
+        "reports": ["validation_report", "evaluation_report"],
+        "visualizations": ["residual_plots", "ml_plots"],
+        "data": ["processed_features"]
+      }
+    },
+    "clustering_pipeline": {
+      "name": "클러스터링 파이프라인",
+      "description": "비지도 학습 클러스터링 분석",
+      "category": "unsupervised_learning",
+      "complexity": 0.6,
+      "estimated_time": 480,
+      "steps": [
+        {
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "데이터 로드",
+          "params": {
+            "numeric_columns_only": true
+          },
+          "outputs": ["raw_data"],
+          "required": true
         },
         {
-          "type": "basic",
+          "order": 2,
+          "type": "data",
+          "method": "validate",
+          "description": "데이터 전처리",
+          "params": {
+            "handle_missing": true,
+            "remove_outliers": false
+          },
+          "requires": ["raw_data"],
+          "outputs": ["clean_data"],
+          "required": true
+        },
+        {
+          "order": 3,
+          "type": "analysis",
+          "method": "feature_engineering",
+          "description": "특성 스케일링",
+          "params": {
+            "operations": ["scaling"],
+            "scaling_method": "standard"
+          },
+          "requires": ["clean_data"],
+          "outputs": ["scaled_features"],
+          "required": true
+        },
+        {
+          "order": 4,
+          "type": "analysis",
+          "method": "pca",
+          "description": "차원 축소 (선택적)",
+          "params": {
+            "variance_threshold": 0.95,
+            "plot_components": true
+          },
+          "requires": ["scaled_features"],
+          "outputs": ["reduced_features", "pca_plots"],
+          "required": false
+        },
+        {
+          "order": 5,
+          "type": "ml",
+          "method": "clustering",
+          "description": "클러스터링 수행",
+          "params": {
+            "algorithm": "kmeans",
+            "auto_optimize": true,
+            "plot_results": true
+          },
+          "requires": ["scaled_features"],
+          "outputs": ["clusters", "cluster_plots", "metrics"],
+          "required": true
+        },
+        {
+          "order": 6,
+          "type": "analysis",
           "method": "descriptive_stats",
+          "description": "클러스터별 분석",
           "params": {
             "group_by_cluster": true
-          }
+          },
+          "requires": ["clean_data", "clusters"],
+          "outputs": ["cluster_profiles"],
+          "required": false
         }
-      ]
+      ],
+      "output_summary": {
+        "clusters": ["clusters"],
+        "reports": ["cluster_profiles", "metrics"],
+        "visualizations": ["pca_plots", "cluster_plots"],
+        "data": ["scaled_features", "reduced_features"]
+      }
     },
-    "full_ml_pipeline": {
-      "name": "완전한 ML 파이프라인",
-      "description": "전처리 → 피처 엔지니어링 → 모델 훈련 → 평가",
+    "time_series_forecasting": {
+      "name": "시계열 예측 파이프라인",
+      "description": "시계열 데이터 분석 및 예측",
+      "category": "time_series",
+      "complexity": 0.8,
+      "estimated_time": 600,
       "steps": [
         {
-          "type": "advanced",
-          "method": "outlier_detection",
-          "params": {}
-        },
-        {
-          "type": "basic",
-          "method": "correlation",
-          "params": {}
-        },
-        {
-          "type": "advanced",
-          "method": "feature_engineering",
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "시계열 데이터 로드",
           "params": {
-            "use_correlation": true
-          }
+            "parse_dates": true,
+            "set_datetime_index": true
+          },
+          "outputs": ["time_series_data"],
+          "required": true
         },
         {
-          "type": "ml_traditional",
-          "method": "supervised.regression.random_forest",
+          "order": 2,
+          "type": "data",
+          "method": "validate",
+          "description": "시계열 검증",
           "params": {
-            "cross_validation": true
-          }
+            "check_frequency": true,
+            "check_missing_dates": true
+          },
+          "requires": ["time_series_data"],
+          "outputs": ["clean_ts_data"],
+          "required": true
         },
         {
-          "type": "visualization",
-          "method": "2d.scatter",
-          "params": {
-            "actual_vs_predicted": true
-          }
-        }
-      ]
-    }
-  },
-  "time_series_workflows": {
-    "complete_time_series": {
-      "name": "완전한 시계열 분석",
-      "description": "트렌드 → 계절성 → 예측",
-      "steps": [
-        {
-          "type": "timeseries",
+          "order": 3,
+          "type": "analysis",
           "method": "trend_analysis",
-          "params": {}
+          "description": "트렌드 분석",
+          "params": {
+            "method": "linear",
+            "plot_trend": true
+          },
+          "requires": ["clean_ts_data"],
+          "outputs": ["trend_analysis", "trend_plots"],
+          "required": true
         },
         {
-          "type": "timeseries",
+          "order": 4,
+          "type": "analysis",
           "method": "seasonality",
-          "params": {}
+          "description": "계절성 분석",
+          "params": {
+            "decomposition_method": "additive",
+            "auto_detect_period": true
+          },
+          "requires": ["clean_ts_data"],
+          "outputs": ["seasonality_analysis", "decomposition_plots"],
+          "required": true
         },
         {
-          "type": "timeseries",
+          "order": 5,
+          "type": "analysis",
           "method": "forecasting",
+          "description": "예측 모델링",
           "params": {
-            "periods": 30
-          }
-        },
-        {
-          "type": "visualization",
-          "method": "2d.line",
-          "params": {
-            "include_forecast": true
-          }
+            "model": "arima",
+            "forecast_periods": 30,
+            "include_uncertainty": true
+          },
+          "requires": ["clean_ts_data", "trend_analysis", "seasonality_analysis"],
+          "outputs": ["forecast", "forecast_plots", "model_metrics"],
+          "required": true
         }
-      ]
+      ],
+      "output_summary": {
+        "forecasts": ["forecast"],
+        "reports": ["trend_analysis", "seasonality_analysis", "model_metrics"],
+        "visualizations": ["trend_plots", "decomposition_plots", "forecast_plots"],
+        "data": ["clean_ts_data"]
+      }
     }
   },
-  "visualization_workflows": {
-    "comprehensive_visualization": {
-      "name": "종합 시각화",
-      "description": "다양한 차트로 데이터 탐색",
+  "advanced_workflows": {
+    "deep_learning_image": {
+      "name": "이미지 분류 딥러닝",
+      "description": "CNN을 사용한 이미지 분류",
+      "category": "deep_learning",
+      "complexity": 0.95,
+      "estimated_time": 1800,
       "steps": [
         {
-          "type": "visualization",
-          "method": "2d.scatter",
-          "params": {}
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "이미지 데이터 로드",
+          "params": {
+            "image_format": "auto",
+            "resize_images": true,
+            "target_size": [224, 224]
+          },
+          "outputs": ["image_data"],
+          "required": true
         },
         {
-          "type": "visualization",
-          "method": "2d.heatmap",
+          "order": 2,
+          "type": "data",
+          "method": "validate",
+          "description": "이미지 전처리",
           "params": {
-            "correlation_matrix": true
-          }
+            "normalize": true,
+            "augmentation": true
+          },
+          "requires": ["image_data"],
+          "outputs": ["processed_images"],
+          "required": true
         },
         {
-          "type": "visualization",
-          "method": "interactive.plotly",
+          "order": 3,
+          "type": "ml",
+          "method": "cnn",
+          "description": "CNN 모델 훈련",
           "params": {
-            "chart_type": "scatter_matrix"
-          }
+            "conv_layers": [32, 64, 128],
+            "epochs": 50,
+            "batch_size": 32
+          },
+          "requires": ["processed_images"],
+          "outputs": ["cnn_model", "training_history"],
+          "required": true
+        },
+        {
+          "order": 4,
+          "type": "ml",
+          "method": "evaluate",
+          "description": "모델 평가",
+          "params": {
+            "detailed_metrics": true,
+            "confusion_matrix": true
+          },
+          "requires": ["cnn_model"],
+          "outputs": ["evaluation_results"],
+          "required": true
+        },
+        {
+          "order": 5,
+          "type": "visualization",
+          "method": "ml_visualization",
+          "description": "결과 시각화",
+          "params": {
+            "visualization_type": "feature_maps",
+            "show_training_curves": true
+          },
+          "requires": ["cnn_model", "training_history"],
+          "outputs": ["dl_visualizations"],
+          "required": false
         }
-      ]
+      ],
+      "output_summary": {
+        "model": ["cnn_model"],
+        "reports": ["evaluation_results"],
+        "visualizations": ["dl_visualizations"],
+        "data": ["processed_images"]
+      }
+    },
+    "ensemble_learning": {
+      "name": "앙상블 학습 파이프라인",
+      "description": "여러 모델을 결합한 앙상블 학습",
+      "category": "ensemble",
+      "complexity": 0.9,
+      "estimated_time": 1200,
+      "steps": [
+        {
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "데이터 로드",
+          "params": {
+            "target_column_required": true
+          },
+          "outputs": ["raw_data"],
+          "required": true
+        },
+        {
+          "order": 2,
+          "type": "data",
+          "method": "validate",
+          "description": "데이터 전처리",
+          "params": {
+            "comprehensive_preprocessing": true
+          },
+          "requires": ["raw_data"],
+          "outputs": ["clean_data"],
+          "required": true
+        },
+        {
+          "order": 3,
+          "type": "analysis",
+          "method": "feature_engineering",
+          "description": "특성 엔지니어링",
+          "params": {
+            "operations": ["scaling", "encoding", "interaction"],
+            "advanced_features": true
+          },
+          "requires": ["clean_data"],
+          "outputs": ["engineered_features"],
+          "required": true
+        },
+        {
+          "order": 4,
+          "type": "ml",
+          "method": "ensemble",
+          "description": "앙상블 모델 훈련",
+          "params": {
+            "methods": ["bagging", "boosting", "voting"],
+            "base_models": ["random_forest", "xgboost", "svm"],
+            "cross_validation": true
+          },
+          "requires": ["engineered_features"],
+          "outputs": ["ensemble_model", "individual_models", "ensemble_predictions"],
+          "required": true
+        },
+        {
+          "order": 5,
+          "type": "ml",
+          "method": "evaluate",
+          "description": "모델 비교 평가",
+          "params": {
+            "compare_individual": true,
+            "ensemble_analysis": true
+          },
+          "requires": ["ensemble_model", "individual_models"],
+          "outputs": ["comparative_evaluation"],
+          "required": true
+        },
+        {
+          "order": 6,
+          "type": "visualization",
+          "method": "ml_visualization",
+          "description": "앙상블 결과 시각화",
+          "params": {
+            "model_comparison": true,
+            "feature_importance_ensemble": true
+          },
+          "requires": ["ensemble_predictions", "comparative_evaluation"],
+          "outputs": ["ensemble_plots"],
+          "required": false
+        }
+      ],
+      "output_summary": {
+        "models": ["ensemble_model", "individual_models"],
+        "reports": ["comparative_evaluation"],
+        "visualizations": ["ensemble_plots"],
+        "data": ["engineered_features"]
+      }
+    },
+    "automated_ml": {
+      "name": "자동화된 머신러닝",
+      "description": "AutoML을 통한 자동 모델 선택 및 최적화",
+      "category": "automl",
+      "complexity": 0.85,
+      "estimated_time": 2400,
+      "steps": [
+        {
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "데이터 로드",
+          "params": {
+            "auto_detect_problem_type": true
+          },
+          "outputs": ["data"],
+          "required": true
+        },
+        {
+          "order": 2,
+          "type": "data",
+          "method": "validate",
+          "description": "자동 데이터 정제",
+          "params": {
+            "auto_clean": true,
+            "auto_impute": true
+          },
+          "requires": ["data"],
+          "outputs": ["clean_data"],
+          "required": true
+        },
+        {
+          "order": 3,
+          "type": "analysis",
+          "method": "feature_engineering",
+          "description": "자동 특성 엔지니어링",
+          "params": {
+            "auto_feature_selection": true,
+            "auto_scaling": true,
+            "auto_encoding": true
+          },
+          "requires": ["clean_data"],
+          "outputs": ["optimized_features"],
+          "required": true
+        },
+        {
+          "order": 4,
+          "type": "ml",
+          "method": "auto_model_selection",
+          "description": "자동 모델 선택",
+          "params": {
+            "try_multiple_algorithms": true,
+            "hyperparameter_optimization": true,
+            "cross_validation": true,
+            "time_budget": 1800
+          },
+          "requires": ["optimized_features"],
+          "outputs": ["best_model", "model_comparison", "optimization_history"],
+          "required": true
+        },
+        {
+          "order": 5,
+          "type": "ml",
+          "method": "evaluate",
+          "description": "최종 모델 평가",
+          "params": {
+            "comprehensive_evaluation": true,
+            "explain_predictions": true
+          },
+          "requires": ["best_model"],
+          "outputs": ["final_evaluation", "model_explanation"],
+          "required": true
+        },
+        {
+          "order": 6,
+          "type": "visualization",
+          "method": "automl_visualization",
+          "description": "AutoML 결과 요약",
+          "params": {
+            "optimization_progress": true,
+            "model_comparison_chart": true,
+            "feature_importance": true
+          },
+          "requires": ["model_comparison", "optimization_history", "final_evaluation"],
+          "outputs": ["automl_report"],
+          "required": false
+        }
+      ],
+      "output_summary": {
+        "models": ["best_model"],
+        "reports": ["final_evaluation", "model_explanation", "model_comparison"],
+        "visualizations": ["automl_report"],
+        "data": ["optimized_features"],
+        "optimization": ["optimization_history"]
+      }
     }
   },
-  "comparison_workflows": {
-    "model_comparison": {
-      "name": "모델 비교 분석",
-      "description": "여러 모델 훈련 및 성능 비교",
+  "specialized_workflows": {
+    "text_analysis": {
+      "name": "텍스트 분석 파이프라인",
+      "description": "자연어 처리 및 텍스트 분석",
+      "category": "nlp",
+      "complexity": 0.7,
+      "estimated_time": 480,
       "steps": [
         {
-          "type": "ml_traditional",
-          "method": "supervised.regression.linear",
-          "params": {}
-        },
-        {
-          "type": "ml_traditional",
-          "method": "supervised.regression.random_forest",
-          "params": {}
-        },
-        {
-          "type": "ml_traditional",
-          "method": "supervised.regression.xgboost",
-          "params": {}
-        },
-        {
-          "type": "visualization",
-          "method": "2d.line",
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "텍스트 데이터 로드",
           "params": {
-            "model_comparison": true
-          }
+            "text_column_required": true,
+            "encoding": "utf-8"
+          },
+          "outputs": ["text_data"],
+          "required": true
+        },
+        {
+          "order": 2,
+          "type": "nlp",
+          "method": "preprocess",
+          "description": "텍스트 전처리",
+          "params": {
+            "clean_text": true,
+            "tokenize": true,
+            "remove_stopwords": true
+          },
+          "requires": ["text_data"],
+          "outputs": ["processed_text"],
+          "required": true
+        },
+        {
+          "order": 3,
+          "type": "nlp",
+          "method": "feature_extraction",
+          "description": "특성 추출",
+          "params": {
+            "method": "tfidf",
+            "max_features": 1000
+          },
+          "requires": ["processed_text"],
+          "outputs": ["text_features"],
+          "required": true
+        },
+        {
+          "order": 4,
+          "type": "analysis",
+          "method": "clustering",
+          "description": "텍스트 클러스터링",
+          "params": {
+            "algorithm": "kmeans",
+            "auto_optimize": true
+          },
+          "requires": ["text_features"],
+          "outputs": ["text_clusters"],
+          "required": false
+        },
+        {
+          "order": 5,
+          "type": "nlp",
+          "method": "topic_modeling",
+          "description": "토픽 모델링",
+          "params": {
+            "algorithm": "lda",
+            "n_topics": 5
+          },
+          "requires": ["processed_text"],
+          "outputs": ["topics", "topic_words"],
+          "required": false
+        },
+        {
+          "order": 6,
+          "type": "visualization",
+          "method": "text_visualization",
+          "description": "텍스트 시각화",
+          "params": {
+            "wordcloud": true,
+            "topic_visualization": true
+          },
+          "requires": ["processed_text", "topics"],
+          "outputs": ["text_plots"],
+          "required": false
         }
-      ]
+      ],
+      "output_summary": {
+        "analysis": ["text_clusters", "topics"],
+        "features": ["text_features", "topic_words"],
+        "visualizations": ["text_plots"],
+        "data": ["processed_text"]
+      }
+    },
+    "anomaly_detection": {
+      "name": "이상 탐지 파이프라인",
+      "description": "다양한 방법을 통한 이상 탐지",
+      "category": "anomaly_detection",
+      "complexity": 0.6,
+      "estimated_time": 360,
+      "steps": [
+        {
+          "order": 1,
+          "type": "data",
+          "method": "load",
+          "description": "데이터 로드",
+          "params": {
+            "time_series_aware": true
+          },
+          "outputs": ["data"],
+          "required": true
+        },
+        {
+          "order": 2,
+          "type": "data",
+          "method": "validate",
+          "description": "데이터 전처리",
+          "params": {
+            "handle_missing": true,
+            "preserve_outliers": true
+          },
+          "requires": ["data"],
+          "outputs": ["clean_data"],
+          "required": true
+        },
+        {
+          "order": 3,
+          "type": "analysis",
+          "method": "outlier_detection",
+          "description": "통계적 이상치 탐지",
+          "params": {
+            "method": "multiple",
+            "methods": ["iqr", "zscore", "isolation_forest"]
+          },
+          "requires": ["clean_data"],
+          "outputs": ["statistical_anomalies"],
+          "required": true
+        },
+        {
+          "order": 4,
+          "type": "ml",
+          "method": "anomaly_ml",
+          "description": "머신러닝 이상 탐지",
+          "params": {
+            "algorithms": ["one_class_svm", "local_outlier_factor"],
+            "ensemble_voting": true
+          },
+          "requires": ["clean_data"],
+          "outputs": ["ml_anomalies"],
+          "required": true
+        },
+        {
+          "order": 5,
+          "type": "analysis",
+          "method": "anomaly_analysis",
+          "description": "이상치 종합 분석",
+          "params": {
+            "consensus_analysis": true,
+            "severity_scoring": true
+          },
+          "requires": ["statistical_anomalies", "ml_anomalies"],
+          "outputs": ["final_anomalies", "anomaly_scores"],
+          "required": true
+        },
+        {
+          "order": 6,
+          "type": "visualization",
+          "method": "anomaly_visualization",
+          "description": "이상치 시각화",
+          "params": {
+            "scatter_plots": true,
+            "time_series_plot": true,
+            "score_distribution": true
+          },
+          "requires": ["clean_data", "final_anomalies", "anomaly_scores"],
+          "outputs": ["anomaly_plots"],
+          "required": false
+        }
+      ],
+      "output_summary": {
+        "anomalies": ["final_anomalies", "anomaly_scores"],
+        "reports": ["statistical_anomalies", "ml_anomalies"],
+        "visualizations": ["anomaly_plots"],
+        "data": ["clean_data"]
+      }
+    }
+  },
+  "workflow_metadata": {
+    "complexity_levels": {
+      "simple": {"min": 0.0, "max": 0.3, "description": "기본적인 분석 작업"},
+      "medium": {"min": 0.3, "max": 0.6, "description": "중간 복잡도의 분석"},
+      "complex": {"min": 0.6, "max": 0.8, "description": "고급 분석 및 머신러닝"},
+      "advanced": {"min": 0.8, "max": 1.0, "description": "최고 수준의 복잡한 작업"}
+    },
+    "categories": {
+      "exploratory": "탐색적 데이터 분석",
+      "quality_assurance": "데이터 품질 보증",
+      "supervised_learning": "지도 학습",
+      "unsupervised_learning": "비지도 학습",
+      "time_series": "시계열 분석",
+      "deep_learning": "딥러닝",
+      "ensemble": "앙상블 학습",
+      "automl": "자동화된 머신러닝",
+      "nlp": "자연어 처리",
+      "anomaly_detection": "이상 탐지"
+    },
+    "estimated_times": {
+      "quick": "1-2분",
+      "short": "3-10분", 
+      "medium": "10-30분",
+      "long": "30분-2시간",
+      "very_long": "2시간 이상"
     }
   }
 }

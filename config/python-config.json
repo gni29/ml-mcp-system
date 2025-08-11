@@ -1,0 +1,287 @@
+{
+  "python_executable": "python3",
+  "virtual_env": {
+    "path": "./python-env",
+    "auto_activate": true,
+    "create_if_missing": true
+  },
+  "execution": {
+    "timeout": 30000,
+    "max_memory_mb": 2048,
+    "max_cpu_percent": 80,
+    "working_directory": "./python",
+    "shell": false,
+    "capture_output": true
+  },
+  "environment_variables": {
+    "PYTHONPATH": "./python",
+    "MATPLOTLIB_BACKEND": "Agg",
+    "PYTHONIOENCODING": "utf-8",
+    "OMP_NUM_THREADS": "4",
+    "MKL_NUM_THREADS": "4",
+    "NUMEXPR_NUM_THREADS": "4"
+  },
+  "required_packages": [
+    {
+      "name": "pandas",
+      "version": ">=1.3.0",
+      "description": "데이터 조작 및 분석",
+      "required": true
+    },
+    {
+      "name": "numpy",
+      "version": ">=1.21.0",
+      "description": "수치 계산",
+      "required": true
+    },
+    {
+      "name": "scikit-learn",
+      "version": ">=1.0.0",
+      "description": "머신러닝 라이브러리",
+      "required": true
+    },
+    {
+      "name": "matplotlib",
+      "version": ">=3.5.0",
+      "description": "데이터 시각화",
+      "required": true
+    },
+    {
+      "name": "seaborn",
+      "version": ">=0.11.0",
+      "description": "통계 데이터 시각화",
+      "required": true
+    },
+    {
+      "name": "plotly",
+      "version": ">=5.0.0",
+      "description": "인터랙티브 시각화",
+      "required": false
+    },
+    {
+      "name": "openpyxl",
+      "version": ">=3.0.0",
+      "description": "Excel 파일 처리",
+      "required": true
+    },
+    {
+      "name": "xlrd",
+      "version": ">=2.0.0",
+      "description": "Excel 파일 읽기",
+      "required": true
+    },
+    {
+      "name": "pyarrow",
+      "version": ">=5.0.0",
+      "description": "Parquet 파일 처리",
+      "required": false
+    },
+    {
+      "name": "h5py",
+      "version": ">=3.0.0",
+      "description": "HDF5 파일 처리",
+      "required": false
+    },
+    {
+      "name": "scipy",
+      "version": ">=1.7.0",
+      "description": "과학 계산",
+      "required": true
+    },
+    {
+      "name": "statsmodels",
+      "version": ">=0.12.0",
+      "description": "통계 모델링",
+      "required": false
+    },
+    {
+      "name": "xgboost",
+      "version": ">=1.5.0",
+      "description": "Gradient Boosting",
+      "required": false
+    },
+    {
+      "name": "lightgbm",
+      "version": ">=3.0.0",
+      "description": "Light Gradient Boosting",
+      "required": false
+    },
+    {
+      "name": "tensorflow",
+      "version": ">=2.8.0",
+      "description": "딥러닝 프레임워크",
+      "required": false,
+      "gpu_variant": "tensorflow-gpu"
+    },
+    {
+      "name": "torch",
+      "version": ">=1.10.0",
+      "description": "PyTorch 딥러닝",
+      "required": false,
+      "gpu_variant": "torch[cuda]"
+    },
+    {
+      "name": "joblib",
+      "version": ">=1.0.0",
+      "description": "병렬 처리",
+      "required": true
+    }
+  ],
+  "optional_packages": [
+    {
+      "name": "jupyter",
+      "version": ">=1.0.0",
+      "description": "Jupyter 노트북 지원"
+    },
+    {
+      "name": "ipython",
+      "version": ">=7.0.0",
+      "description": "향상된 Python 인터프리터"
+    },
+    {
+      "name": "tqdm",
+      "version": ">=4.60.0",
+      "description": "진행률 표시"
+    },
+    {
+      "name": "requests",
+      "version": ">=2.25.0",
+      "description": "HTTP 라이브러리"
+    }
+  ],
+  "package_installation": {
+    "use_pip": true,
+    "pip_options": [
+      "--upgrade",
+      "--no-cache-dir"
+    ],
+    "index_url": "https://pypi.org/simple/",
+    "extra_index_urls": [],
+    "trusted_hosts": [],
+    "install_timeout": 300,
+    "retry_attempts": 3
+  },
+  "script_execution": {
+    "default_timeout": 30000,
+    "max_retries": 2,
+    "retry_delay": 1000,
+    "memory_monitoring": true,
+    "cpu_monitoring": true,
+    "output_encoding": "utf-8",
+    "error_encoding": "utf-8"
+  },
+  "data_limits": {
+    "max_file_size_mb": 500,
+    "max_rows": 1000000,
+    "max_columns": 1000,
+    "max_memory_usage_mb": 1500,
+    "warn_threshold_mb": 1000
+  },
+  "security": {
+    "allowed_imports": [
+      "pandas",
+      "numpy",
+      "sklearn",
+      "matplotlib",
+      "seaborn",
+      "plotly",
+      "scipy",
+      "statsmodels",
+      "xgboost",
+      "lightgbm",
+      "tensorflow",
+      "torch",
+      "joblib",
+      "json",
+      "csv",
+      "os",
+      "sys",
+      "math",
+      "random",
+      "datetime",
+      "pathlib",
+      "warnings",
+      "pickle",
+      "gzip",
+      "zipfile"
+    ],
+    "forbidden_imports": [
+      "subprocess",
+      "socket",
+      "urllib",
+      "requests",
+      "http",
+      "smtplib",
+      "ftplib",
+      "telnetlib"
+    ],
+    "restricted_functions": [
+      "exec",
+      "eval",
+      "compile",
+      "__import__"
+    ],
+    "safe_mode": true,
+    "sandbox_execution": false
+  },
+  "logging": {
+    "level": "INFO",
+    "capture_stdout": true,
+    "capture_stderr": true,
+    "log_file": "./logs/python-execution.log",
+    "max_log_size_mb": 50,
+    "rotate_logs": true
+  },
+  "temp_files": {
+    "temp_directory": "./temp/python",
+    "auto_cleanup": true,
+    "cleanup_interval": 3600,
+    "max_temp_size_mb": 100
+  },
+  "performance": {
+    "enable_multiprocessing": true,
+    "max_workers": 4,
+    "chunk_size": 1000,
+    "use_fast_math": true,
+    "optimize_memory": true,
+    "cache_results": true,
+    "cache_size_mb": 100
+  },
+  "error_handling": {
+    "capture_warnings": true,
+    "detailed_tracebacks": true,
+    "timeout_handling": "graceful",
+    "memory_error_handling": "cleanup_and_retry",
+    "max_error_length": 1000
+  },
+  "development": {
+    "debug_mode": false,
+    "verbose_output": false,
+    "profile_execution": false,
+    "save_intermediate_results": false,
+    "development_packages": [
+      "ipdb",
+      "memory_profiler",
+      "line_profiler"
+    ]
+  },
+  "gpu_support": {
+    "enable_gpu": false,
+    "cuda_version": "11.8",
+    "gpu_memory_fraction": 0.8,
+    "allow_growth": true,
+    "gpu_packages": [
+      "cupy",
+      "cudf",
+      "cuml"
+    ]
+  },
+  "validation": {
+    "check_packages_on_startup": true,
+    "verify_python_version": true,
+    "min_python_version": "3.8",
+    "max_python_version": "3.11",
+    "check_system_resources": true,
+    "warn_on_missing_optional": false
+  }
+}

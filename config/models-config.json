@@ -1,0 +1,300 @@
+{
+  "router": {
+    "model": "llama3.2:3b",
+    "endpoint": "http://localhost:11434",
+    "temperature": 0.1,
+    "max_tokens": 1024,
+    "role": "routing",
+    "description": "빠른 의도 파악 및 라우팅 결정",
+    "memory_limit": "6GB",
+    "auto_unload": false,
+    "auto_unload_timeout": 300000,
+    "optimization": {
+      "context_length": 4096,
+      "batch_size": 1,
+      "num_threads": 4,
+      "use_mmap": true,
+      "use_mlock": false
+    },
+    "prompt_templates": {
+      "system": "당신은 ML MCP 시스템의 라우터입니다. 사용자의 요청을 분석하여 적절한 도구와 모델을 선택해주세요.",
+      "routing": "다음 요청을 분석하여 적절한 도구를 선택해주세요:\n\n요청: {query}\n\n응답 형식:\n- 도구: [도구명]\n- 복잡도: [0.0-1.0]\n- 예상 시간: [초]\n- 필요 리소스: [설명]",
+      "intent_analysis": "사용자의 의도를 분석해주세요:\n\n입력: {input}\n\n분석할 항목:\n1. 주요 의도\n2. 데이터 타입\n3. 분석 종류\n4. 출력 형태"
+    },
+    "retry_config": {
+      "max_retries": 3,
+      "retry_delay": 1000,
+      "backoff_factor": 2
+    }
+  },
+  "processor": {
+    "model": "qwen2.5:14b",
+    "endpoint": "http://localhost:11434",
+    "temperature": 0.3,
+    "max_tokens": 2048,
+    "role": "processing",
+    "description": "복잡한 코드 생성 및 분석 작업",
+    "memory_limit": "28GB",
+    "auto_unload": true,
+    "auto_unload_timeout": 600000,
+    "optimization": {
+      "context_length": 8192,
+      "batch_size": 1,
+      "num_threads": 8,
+      "use_mmap": true,
+      "use_mlock": true
+    },
+    "prompt_templates": {
+      "system": "당신은 데이터 과학 및 머신러닝 전문가입니다. Python 코드를 생성하고 분석 작업을 수행해주세요.",
+      "code_generation": "다음 작업에 대한 Python 코드를 생성해주세요:\n\n작업: {task}\n데이터: {data_info}\n요구사항: {requirements}\n\n코드만 반환하고 설명은 주석으로 포함해주세요.",
+      "analysis": "다음 데이터를 분석해주세요:\n\n데이터 정보: {data_info}\n분석 타입: {analysis_type}\n파라미터: {parameters}\n\n단계별로 분석을 수행하고 결과를 해석해주세요.",
+      "error_diagnosis": "다음 에러를 진단하고 해결책을 제시해주세요:\n\n에러: {error}\n코드: {code}\n컨텍스트: {context}"
+    },
+    "retry_config": {
+      "max_retries": 2,
+      "retry_delay": 2000,
+      "backoff_factor": 1.5
+    }
+  },
+  "fallback": {
+    "model": "llama3.2:1b",
+    "endpoint": "http://localhost:11434",
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "role": "fallback",
+    "description": "시스템 리소스 부족 시 사용하는 경량 모델",
+    "memory_limit": "2GB",
+    "auto_unload": true,
+    "auto_unload_timeout": 180000,
+    "optimization": {
+      "context_length": 2048,
+      "batch_size": 1,
+      "num_threads": 2,
+      "use_mmap": true,
+      "use_mlock": false
+    },
+    "prompt_templates": {
+      "system": "당신은 기본적인 도움을 제공하는 AI 어시스턴트입니다.",
+      "simple_help": "다음 요청에 대해 간단한 도움을 제공해주세요:\n\n요청: {query}"
+    },
+    "retry_config": {
+      "max_retries": 1,
+      "retry_delay": 500,
+      "backoff_factor": 1
+    }
+  },
+  "model_selection": {
+    "selection_criteria": {
+      "complexity_thresholds": {
+        "simple": 0.3,
+        "medium": 0.6,
+        "complex": 0.8
+      },
+      "memory_thresholds": {
+        "low": "4GB",
+        "medium": "16GB",
+        "high": "32GB"
+      },
+      "task_type_mapping": {
+        "routing": "router",
+        "simple_query": "router",
+        "data_analysis": "processor",
+        "ml_training": "processor",
+        "code_generation": "processor",
+        "error_handling": "fallback"
+      }
+    },
+    "load_balancing": {
+      "enable": true,
+      "strategy": "least_loaded",
+      "health_check_interval": 30000,
+      "max_concurrent_requests": {
+        "router": 5,
+        "processor": 2,
+        "fallback": 3
+      }
+    }
+  },
+  "performance_monitoring": {
+    "enable_metrics": true,
+    "metrics_collection": {
+      "response_time": true,
+      "memory_usage": true,
+      "token_usage": true,
+      "error_rate": true,
+      "throughput": true
+    },
+    "alert_thresholds": {
+      "response_time_ms": 30000,
+      "memory_usage_percent": 90,
+      "error_rate_percent": 10,
+      "queue_size": 10
+    },
+    "metrics_retention": {
+      "detailed_metrics_hours": 24,
+      "summary_metrics_days": 30,
+      "export_format": "json"
+    }
+  },
+  "caching": {
+    "enable_response_cache": true,
+    "cache_config": {
+      "max_size_mb": 500,
+      "ttl_seconds": 3600,
+      "cleanup_interval": 300,
+      "cache_key_strategy": "hash"
+    },
+    "cacheable_requests": {
+      "static_analysis": true,
+      "data_summary": true,
+      "help_queries": true,
+      "template_generation": false
+    }
+  },
+  "security": {
+    "api_key_required": false,
+    "rate_limiting": {
+      "enable": true,
+      "requests_per_minute": 60,
+      "requests_per_hour": 1000,
+      "burst_size": 10
+    },
+    "input_validation": {
+      "max_input_length": 10000,
+      "sanitize_input": true,
+      "blocked_patterns": [
+        "system\\(",
+        "exec\\(",
+        "eval\\(",
+        "__import__"
+      ]
+    },
+    "output_filtering": {
+      "filter_sensitive_data": true,
+      "max_output_length": 50000
+    }
+  },
+  "error_handling": {
+    "global_timeout": 60000,
+    "connection_timeout": 10000,
+    "read_timeout": 45000,
+    "retry_strategies": {
+      "network_error": {
+        "max_retries": 3,
+        "retry_delay": 2000,
+        "exponential_backoff": true
+      },
+      "model_error": {
+        "max_retries": 1,
+        "retry_delay": 1000,
+        "fallback_model": "fallback"
+      },
+      "timeout_error": {
+        "max_retries": 2,
+        "retry_delay": 5000,
+        "reduce_max_tokens": true
+      }
+    },
+    "circuit_breaker": {
+      "enable": true,
+      "failure_threshold": 5,
+      "recovery_timeout": 30000,
+      "half_open_max_calls": 3
+    }
+  },
+  "model_management": {
+    "auto_download": false,
+    "model_storage_path": "./models",
+    "cleanup_unused": true,
+    "cleanup_interval_hours": 24,
+    "keep_recent_models": 3,
+    "model_validation": {
+      "verify_on_load": true,
+      "health_check_prompt": "Hello, are you working correctly?",
+      "expected_response_pattern": ".*"
+    }
+  },
+  "development": {
+    "debug_mode": false,
+    "log_requests": true,
+    "log_responses": false,
+    "save_conversations": false,
+    "conversation_history_limit": 100,
+    "model_comparison": {
+      "enable": false,
+      "compare_models": ["router", "processor"],
+      "comparison_metrics": ["response_time", "quality_score"]
+    }
+  },
+  "experimental_features": {
+    "enable_streaming": false,
+    "enable_function_calling": false,
+    "enable_multi_modal": false,
+    "custom_model_configs": {},
+    "a_b_testing": {
+      "enable": false,
+      "test_groups": {},
+      "traffic_split": 0.1
+    }
+  },
+  "integration": {
+    "ollama": {
+      "health_check_url": "http://localhost:11434/api/tags",
+      "model_list_url": "http://localhost:11434/api/tags",
+      "chat_endpoint": "/api/chat",
+      "generate_endpoint": "/api/generate",
+      "connection_pool_size": 10,
+      "keep_alive": "5m"
+    },
+    "external_apis": {
+      "openai_compatible": false,
+      "anthropic_compatible": false,
+      "custom_endpoints": {}
+    }
+  },
+  "resource_management": {
+    "memory_monitoring": {
+      "enable": true,
+      "check_interval": 10000,
+      "cleanup_threshold": 0.85,
+      "emergency_threshold": 0.95
+    },
+    "gpu_management": {
+      "enable_gpu": false,
+      "gpu_memory_fraction": 0.8,
+      "allow_memory_growth": true,
+      "gpu_device_ids": [0]
+    },
+    "cpu_management": {
+      "max_cpu_percent": 80,
+      "thread_pool_size": 4,
+      "process_priority": "normal"
+    }
+  },
+  "backup_and_recovery": {
+    "auto_backup_configs": true,
+    "backup_interval_hours": 24,
+    "backup_retention_days": 30,
+    "backup_location": "./backups/models",
+    "recovery_procedures": {
+      "model_corruption": "reload_from_backup",
+      "connection_failure": "retry_with_fallback",
+      "memory_overflow": "restart_with_cleanup"
+    }
+  },
+  "notifications": {
+    "enable_alerts": true,
+    "alert_channels": {
+      "console": true,
+      "log_file": true,
+      "webhook": false,
+      "email": false
+    },
+    "alert_levels": {
+      "model_down": "critical",
+      "high_memory_usage": "warning",
+      "slow_response": "info",
+      "fallback_activated": "warning"
+    }
+  }
+}

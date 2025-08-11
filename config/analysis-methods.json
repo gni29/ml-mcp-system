@@ -1,218 +1,776 @@
 {
   "basic": {
     "descriptive_stats": {
-      "script": "python/analyzers/basic/descriptive_stats.py",
-      "class": "DescriptiveStats",
-      "method": "analyze",
-      "description": "기본 통계 분석 (평균, 표준편차, 분위수 등)"
+      "name": "기술통계 분석",
+      "description": "데이터의 기본적인 통계량 계산 (평균, 표준편차, 분위수 등)",
+      "python_script": "python/analysis/basic/descriptive_stats.py",
+      "parameters": {
+        "include_quartiles": {
+          "type": "boolean",
+          "default": true,
+          "description": "사분위수 포함 여부"
+        },
+        "include_skewness": {
+          "type": "boolean",
+          "default": true,
+          "description": "왜도 포함 여부"
+        },
+        "include_kurtosis": {
+          "type": "boolean",
+          "default": true,
+          "description": "첨도 포함 여부"
+        }
+      },
+      "output_format": ["json", "table", "summary"],
+      "complexity": 0.2,
+      "estimated_time_ms": 1000
     },
     "correlation": {
-      "script": "python/analyzers/basic/correlation.py",
-      "class": "CorrelationAnalyzer",
-      "method": "analyze",
-      "description": "상관관계 분석 (피어슨, 스피어만 등)"
+      "name": "상관관계 분석",
+      "description": "변수 간의 선형 상관관계 분석",
+      "python_script": "python/analysis/basic/correlation.py",
+      "parameters": {
+        "method": {
+          "type": "string",
+          "options": ["pearson", "spearman", "kendall"],
+          "default": "pearson",
+          "description": "상관계수 계산 방법"
+        },
+        "threshold": {
+          "type": "number",
+          "min": 0,
+          "max": 1,
+          "default": 0.5,
+          "description": "유의한 상관관계 임계값"
+        },
+        "heatmap": {
+          "type": "boolean",
+          "default": true,
+          "description": "히트맵 생성 여부"
+        }
+      },
+      "output_format": ["matrix", "heatmap", "list"],
+      "complexity": 0.3,
+      "estimated_time_ms": 2000
     },
     "distribution": {
-      "script": "python/analyzers/basic/distribution.py",
-      "class": "DistributionAnalyzer",
-      "method": "analyze",
-      "description": "분포 분석 (정규성 검정, 히스토그램 등)"
+      "name": "분포 분석",
+      "description": "데이터의 분포 특성 분석",
+      "python_script": "python/analysis/basic/distribution.py",
+      "parameters": {
+        "plot_type": {
+          "type": "string",
+          "options": ["histogram", "boxplot", "violin", "all"],
+          "default": "all",
+          "description": "생성할 플롯 유형"
+        },
+        "bins": {
+          "type": "integer",
+          "min": 5,
+          "max": 100,
+          "default": 30,
+          "description": "히스토그램 구간 수"
+        },
+        "test_normality": {
+          "type": "boolean",
+          "default": true,
+          "description": "정규성 검정 수행 여부"
+        }
+      },
+      "output_format": ["plots", "statistics", "test_results"],
+      "complexity": 0.4,
+      "estimated_time_ms": 3000
+    },
+    "frequency": {
+      "name": "빈도 분석",
+      "description": "범주형 데이터의 빈도 및 비율 분석",
+      "python_script": "python/analysis/basic/frequency.py",
+      "parameters": {
+        "include_percentages": {
+          "type": "boolean",
+          "default": true,
+          "description": "백분율 포함 여부"
+        },
+        "sort_by": {
+          "type": "string",
+          "options": ["frequency", "alphabetical", "value"],
+          "default": "frequency",
+          "description": "정렬 기준"
+        },
+        "top_n": {
+          "type": "integer",
+          "min": 5,
+          "max": 100,
+          "default": 20,
+          "description": "상위 N개 항목만 표시"
+        }
+      },
+      "output_format": ["table", "chart", "summary"],
+      "complexity": 0.2,
+      "estimated_time_ms": 1500
     }
   },
   "advanced": {
     "pca": {
-      "script": "python/analyzers/advanced/pca.py",
-      "class": "PCAAnalyzer",
-      "method": "analyze",
-      "description": "주성분 분석 (차원 축소)"
+      "name": "주성분 분석",
+      "description": "차원 축소 및 주성분 분석",
+      "python_script": "python/analysis/advanced/pca.py",
+      "parameters": {
+        "n_components": {
+          "type": "integer",
+          "min": 2,
+          "max": 50,
+          "default": null,
+          "description": "주성분 개수 (null이면 자동 결정)"
+        },
+        "variance_threshold": {
+          "type": "number",
+          "min": 0.8,
+          "max": 0.99,
+          "default": 0.95,
+          "description": "설명할 분산 비율"
+        },
+        "standardize": {
+          "type": "boolean",
+          "default": true,
+          "description": "데이터 표준화 여부"
+        },
+        "plot_components": {
+          "type": "boolean",
+          "default": true,
+          "description": "주성분 플롯 생성 여부"
+        }
+      },
+      "output_format": ["components", "loadings", "plots", "variance_explained"],
+      "complexity": 0.6,
+      "estimated_time_ms": 5000
     },
     "clustering": {
-      "script": "python/analyzers/advanced/clustering.py",
-      "class": "ClusteringAnalyzer",
-      "method": "analyze",
-      "description": "클러스터링 분석 (K-means, DBSCAN 등)"
+      "name": "클러스터링 분석",
+      "description": "비지도 학습을 통한 데이터 군집화",
+      "python_script": "python/analysis/advanced/clustering.py",
+      "parameters": {
+        "algorithm": {
+          "type": "string",
+          "options": ["kmeans", "hierarchical", "dbscan", "gaussian_mixture"],
+          "default": "kmeans",
+          "description": "클러스터링 알고리즘"
+        },
+        "n_clusters": {
+          "type": "integer",
+          "min": 2,
+          "max": 20,
+          "default": null,
+          "description": "클러스터 수 (null이면 최적값 자동 결정)"
+        },
+        "auto_optimize": {
+          "type": "boolean",
+          "default": true,
+          "description": "최적 클러스터 수 자동 결정"
+        },
+        "plot_results": {
+          "type": "boolean",
+          "default": true,
+          "description": "클러스터링 결과 시각화"
+        }
+      },
+      "output_format": ["clusters", "centroids", "plots", "metrics"],
+      "complexity": 0.7,
+      "estimated_time_ms": 8000
     },
     "outlier_detection": {
-      "script": "python/analyzers/advanced/outlier_detection.py",
-      "class": "OutlierDetector",
-      "method": "detect",
-      "description": "이상치 탐지 (IQR, Z-score, Isolation Forest 등)"
+      "name": "이상치 탐지",
+      "description": "통계적 방법을 통한 이상치 탐지",
+      "python_script": "python/analysis/advanced/outlier_detection.py",
+      "parameters": {
+        "method": {
+          "type": "string",
+          "options": ["iqr", "zscore", "isolation_forest", "local_outlier_factor"],
+          "default": "iqr",
+          "description": "이상치 탐지 방법"
+        },
+        "threshold": {
+          "type": "number",
+          "min": 1.5,
+          "max": 3.0,
+          "default": 1.5,
+          "description": "이상치 판정 임계값"
+        },
+        "contamination": {
+          "type": "number",
+          "min": 0.01,
+          "max": 0.5,
+          "default": 0.1,
+          "description": "예상 이상치 비율"
+        },
+        "visualize": {
+          "type": "boolean",
+          "default": true,
+          "description": "이상치 시각화 여부"
+        }
+      },
+      "output_format": ["outliers", "plots", "statistics", "cleaned_data"],
+      "complexity": 0.5,
+      "estimated_time_ms": 4000
     },
     "feature_engineering": {
-      "script": "python/analyzers/advanced/feature_engineering.py",
-      "class": "FeatureEngineer",
-      "method": "create_features",
-      "description": "파생변수 생성 (상호작용, 다항식 등)"
+      "name": "피처 엔지니어링",
+      "description": "특성 생성, 선택, 변환",
+      "python_script": "python/analysis/advanced/feature_engineering.py",
+      "parameters": {
+        "operations": {
+          "type": "array",
+          "options": ["scaling", "encoding", "binning", "polynomial", "interaction"],
+          "default": ["scaling", "encoding"],
+          "description": "수행할 피처 엔지니어링 작업"
+        },
+        "scaling_method": {
+          "type": "string",
+          "options": ["standard", "minmax", "robust", "quantile"],
+          "default": "standard",
+          "description": "스케일링 방법"
+        },
+        "encoding_method": {
+          "type": "string",
+          "options": ["onehot", "label", "target", "binary"],
+          "default": "onehot",
+          "description": "범주형 변수 인코딩 방법"
+        },
+        "polynomial_degree": {
+          "type": "integer",
+          "min": 2,
+          "max": 5,
+          "default": 2,
+          "description": "다항식 특성 차수"
+        }
+      },
+      "output_format": ["transformed_data", "feature_names", "transformers"],
+      "complexity": 0.6,
+      "estimated_time_ms": 6000
     }
   },
   "timeseries": {
     "trend_analysis": {
-      "script": "python/analyzers/timeseries/trend_analysis.py",
-      "class": "TrendAnalyzer",
-      "method": "analyze",
-      "description": "시계열 트렌드 분석"
+      "name": "트렌드 분석",
+      "description": "시계열 데이터의 추세 분석",
+      "python_script": "python/analysis/timeseries/trend_analysis.py",
+      "parameters": {
+        "method": {
+          "type": "string",
+          "options": ["linear", "polynomial", "exponential", "moving_average"],
+          "default": "linear",
+          "description": "트렌드 분석 방법"
+        },
+        "window_size": {
+          "type": "integer",
+          "min": 3,
+          "max": 50,
+          "default": 7,
+          "description": "이동평균 윈도우 크기"
+        },
+        "confidence_interval": {
+          "type": "number",
+          "min": 0.8,
+          "max": 0.99,
+          "default": 0.95,
+          "description": "신뢰구간"
+        },
+        "plot_trend": {
+          "type": "boolean",
+          "default": true,
+          "description": "트렌드 라인 플롯 생성"
+        }
+      },
+      "output_format": ["trend_data", "statistics", "plots", "forecast"],
+      "complexity": 0.5,
+      "estimated_time_ms": 4000
     },
     "seasonality": {
-      "script": "python/analyzers/timeseries/seasonality.py",
-      "class": "SeasonalityAnalyzer",
-      "method": "analyze",
-      "description": "계절성 분석"
+      "name": "계절성 분석",
+      "description": "시계열 데이터의 계절성 패턴 분석",
+      "python_script": "python/analysis/timeseries/seasonality.py",
+      "parameters": {
+        "decomposition_method": {
+          "type": "string",
+          "options": ["additive", "multiplicative", "stl"],
+          "default": "additive",
+          "description": "분해 방법"
+        },
+        "period": {
+          "type": "integer",
+          "min": 2,
+          "max": 365,
+          "default": null,
+          "description": "계절성 주기 (null이면 자동 탐지)"
+        },
+        "auto_detect_period": {
+          "type": "boolean",
+          "default": true,
+          "description": "주기 자동 탐지 여부"
+        },
+        "plot_decomposition": {
+          "type": "boolean",
+          "default": true,
+          "description": "분해 결과 플롯 생성"
+        }
+      },
+      "output_format": ["decomposed_components", "seasonality_strength", "plots"],
+      "complexity": 0.6,
+      "estimated_time_ms": 5000
     },
     "forecasting": {
-      "script": "python/analyzers/timeseries/forecasting.py",
-      "class": "TimeSeriesForecaster",
-      "method": "forecast",
-      "description": "시계열 예측 (ARIMA, Prophet 등)"
+      "name": "시계열 예측",
+      "description": "시계열 데이터 기반 미래값 예측",
+      "python_script": "python/analysis/timeseries/forecasting.py",
+      "parameters": {
+        "model": {
+          "type": "string",
+          "options": ["arima", "exponential_smoothing", "prophet", "lstm"],
+          "default": "arima",
+          "description": "예측 모델"
+        },
+        "forecast_periods": {
+          "type": "integer",
+          "min": 1,
+          "max": 365,
+          "default": 30,
+          "description": "예측할 기간 수"
+        },
+        "confidence_level": {
+          "type": "number",
+          "min": 0.8,
+          "max": 0.99,
+          "default": 0.95,
+          "description": "예측 신뢰도"
+        },
+        "include_uncertainty": {
+          "type": "boolean",
+          "default": true,
+          "description": "불확실성 구간 포함 여부"
+        }
+      },
+      "output_format": ["forecast", "confidence_intervals", "plots", "metrics"],
+      "complexity": 0.8,
+      "estimated_time_ms": 10000
     }
   },
   "ml_traditional": {
-    "supervised": {
-      "regression": {
-        "linear": {
-          "script": "python/ml/supervised/regression/linear_regression.py",
-          "class": "LinearRegression",
-          "method": "train_and_evaluate",
-          "description": "선형 회귀"
+    "classification": {
+      "name": "분류 분석",
+      "description": "지도학습 분류 모델 훈련 및 평가",
+      "python_script": "python/ml/supervised/classification.py",
+      "parameters": {
+        "algorithm": {
+          "type": "string",
+          "options": ["random_forest", "svm", "logistic_regression", "xgboost", "naive_bayes"],
+          "default": "random_forest",
+          "description": "분류 알고리즘"
         },
-        "random_forest": {
-          "script": "python/ml/supervised/regression/random_forest_regression.py",
-          "class": "RandomForestRegression",
-          "method": "train_and_evaluate",
-          "description": "랜덤 포레스트 회귀"
+        "test_size": {
+          "type": "number",
+          "min": 0.1,
+          "max": 0.5,
+          "default": 0.2,
+          "description": "테스트 데이터 비율"
         },
-        "xgboost": {
-          "script": "python/ml/supervised/regression/xgboost_regression.py",
-          "class": "XGBoostRegression",
-          "method": "train_and_evaluate",
-          "description": "XGBoost 회귀"
+        "cross_validation": {
+          "type": "boolean",
+          "default": true,
+          "description": "교차 검증 수행 여부"
+        },
+        "cv_folds": {
+          "type": "integer",
+          "min": 3,
+          "max": 10,
+          "default": 5,
+          "description": "교차 검증 폴드 수"
+        },
+        "hyperparameter_tuning": {
+          "type": "boolean",
+          "default": false,
+          "description": "하이퍼파라미터 튜닝 여부"
         }
       },
-      "classification": {
-        "logistic": {
-          "script": "python/ml/supervised/classification/logistic_regression.py",
-          "class": "LogisticRegression",
-          "method": "train_and_evaluate",
-          "description": "로지스틱 회귀"
-        },
-        "random_forest": {
-          "script": "python/ml/supervised/classification/random_forest.py",
-          "class": "RandomForestClassifier",
-          "method": "train_and_evaluate",
-          "description": "랜덤 포레스트 분류"
-        },
-        "xgboost": {
-          "script": "python/ml/supervised/classification/xgboost_classifier.py",
-          "class": "XGBoostClassifier",
-          "method": "train_and_evaluate",
-          "description": "XGBoost 분류"
-        }
-      },
-      "ensemble": {
-        "voting": {
-          "script": "python/ml/supervised/ensemble/voting_classifier.py",
-          "class": "VotingEnsemble",
-          "method": "train_and_evaluate",
-          "description": "보팅 앙상블"
-        },
-        "stacking": {
-          "script": "python/ml/supervised/ensemble/stacking.py",
-          "class": "StackingEnsemble",
-          "method": "train_and_evaluate",
-          "description": "스태킹 앙상블"
-        }
-      }
+      "output_format": ["model", "predictions", "metrics", "confusion_matrix", "feature_importance"],
+      "complexity": 0.7,
+      "estimated_time_ms": 15000
     },
-    "unsupervised": {
-      "clustering": {
-        "kmeans": {
-          "script": "python/ml/unsupervised/clustering/kmeans.py",
-          "class": "KMeansClusterer",
-          "method": "cluster",
-          "description": "K-평균 클러스터링"
+    "regression": {
+      "name": "회귀 분석",
+      "description": "지도학습 회귀 모델 훈련 및 평가",
+      "python_script": "python/ml/supervised/regression.py",
+      "parameters": {
+        "algorithm": {
+          "type": "string",
+          "options": ["linear", "ridge", "lasso", "random_forest", "xgboost", "svr"],
+          "default": "random_forest",
+          "description": "회귀 알고리즘"
         },
-        "dbscan": {
-          "script": "python/ml/unsupervised/clustering/dbscan.py",
-          "class": "DBSCANClusterer",
-          "method": "cluster",
-          "description": "DBSCAN 클러스터링"
+        "test_size": {
+          "type": "number",
+          "min": 0.1,
+          "max": 0.5,
+          "default": 0.2,
+          "description": "테스트 데이터 비율"
         },
-        "hierarchical": {
-          "script": "python/ml/unsupervised/clustering/hierarchical.py",
-          "class": "HierarchicalClusterer",
-          "method": "cluster",
-          "description": "계층적 클러스터링"
+        "regularization": {
+          "type": "number",
+          "min": 0.001,
+          "max": 10.0,
+          "default": 1.0,
+          "description": "정규화 강도"
+        },
+        "cross_validation": {
+          "type": "boolean",
+          "default": true,
+          "description": "교차 검증 수행 여부"
         }
       },
-      "dimensionality_reduction": {
-        "pca": {
-          "script": "python/ml/unsupervised/dimensionality_reduction/pca.py",
-          "class": "PCAReducer",
-          "method": "reduce",
-          "description": "주성분 분석"
+      "output_format": ["model", "predictions", "metrics", "residual_plots", "feature_importance"],
+      "complexity": 0.6,
+      "estimated_time_ms": 12000
+    },
+    "ensemble": {
+      "name": "앙상블 학습",
+      "description": "여러 모델을 결합한 앙상블 학습",
+      "python_script": "python/ml/supervised/ensemble.py",
+      "parameters": {
+        "methods": {
+          "type": "array",
+          "options": ["bagging", "boosting", "voting", "stacking"],
+          "default": ["bagging", "voting"],
+          "description": "앙상블 방법"
         },
-        "tsne": {
-          "script": "python/ml/unsupervised/dimensionality_reduction/tsne.py",
-          "class": "TSNEReducer",
-          "method": "reduce",
-          "description": "t-SNE 차원 축소"
+        "base_models": {
+          "type": "array",
+          "options": ["random_forest", "svm", "logistic_regression", "xgboost"],
+          "default": ["random_forest", "svm", "xgboost"],
+          "description": "기본 모델들"
         },
-        "umap": {
-          "script": "python/ml/unsupervised/dimensionality_reduction/umap.py",
-          "class": "UMAPReducer",
-          "method": "reduce",
-          "description": "UMAP 차원 축소"
+        "voting_type": {
+          "type": "string",
+          "options": ["hard", "soft"],
+          "default": "soft",
+          "description": "투표 방식"
+        },
+        "n_estimators": {
+          "type": "integer",
+          "min": 10,
+          "max": 200,
+          "default": 100,
+          "description": "추정기 개수"
         }
-      }
+      },
+      "output_format": ["ensemble_model", "individual_models", "predictions", "metrics"],
+      "complexity": 0.8,
+      "estimated_time_ms": 20000
+    }
+  },
+  "ml_unsupervised": {
+    "kmeans": {
+      "name": "K-Means 클러스터링",
+      "description": "K-평균 알고리즘을 사용한 클러스터링",
+      "python_script": "python/ml/unsupervised/kmeans.py",
+      "parameters": {
+        "n_clusters": {
+          "type": "integer",
+          "min": 2,
+          "max": 20,
+          "default": null,
+          "description": "클러스터 수"
+        },
+        "init_method": {
+          "type": "string",
+          "options": ["k-means++", "random"],
+          "default": "k-means++",
+          "description": "초기화 방법"
+        },
+        "max_iter": {
+          "type": "integer",
+          "min": 100,
+          "max": 1000,
+          "default": 300,
+          "description": "최대 반복 횟수"
+        },
+        "elbow_method": {
+          "type": "boolean",
+          "default": true,
+          "description": "엘보우 방법으로 최적 k 찾기"
+        }
+      },
+      "output_format": ["clusters", "centroids", "inertia", "silhouette_score"],
+      "complexity": 0.5,
+      "estimated_time_ms": 6000
+    },
+    "hierarchical": {
+      "name": "계층적 클러스터링",
+      "description": "계층적 군집화 분석",
+      "python_script": "python/ml/unsupervised/hierarchical.py",
+      "parameters": {
+        "linkage": {
+          "type": "string",
+          "options": ["ward", "complete", "average", "single"],
+          "default": "ward",
+          "description": "연결 방법"
+        },
+        "distance_metric": {
+          "type": "string",
+          "options": ["euclidean", "manhattan", "cosine"],
+          "default": "euclidean",
+          "description": "거리 측정 방법"
+        },
+        "n_clusters": {
+          "type": "integer",
+          "min": 2,
+          "max": 20,
+          "default": null,
+          "description": "클러스터 수"
+        },
+        "dendrogram": {
+          "type": "boolean",
+          "default": true,
+          "description": "덴드로그램 생성 여부"
+        }
+      },
+      "output_format": ["clusters", "dendrogram", "linkage_matrix"],
+      "complexity": 0.6,
+      "estimated_time_ms": 8000
+    },
+    "dbscan": {
+      "name": "DBSCAN 클러스터링",
+      "description": "밀도 기반 클러스터링",
+      "python_script": "python/ml/unsupervised/dbscan.py",
+      "parameters": {
+        "eps": {
+          "type": "number",
+          "min": 0.1,
+          "max": 5.0,
+          "default": 0.5,
+          "description": "이웃 거리 임계값"
+        },
+        "min_samples": {
+          "type": "integer",
+          "min": 3,
+          "max": 50,
+          "default": 5,
+          "description": "최소 샘플 수"
+        },
+        "metric": {
+          "type": "string",
+          "options": ["euclidean", "manhattan", "cosine"],
+          "default": "euclidean",
+          "description": "거리 측정 방법"
+        },
+        "auto_eps": {
+          "type": "boolean",
+          "default": true,
+          "description": "최적 eps 자동 결정"
+        }
+      },
+      "output_format": ["clusters", "core_samples", "noise_points", "parameters"],
+      "complexity": 0.6,
+      "estimated_time_ms": 7000
+    }
+  },
+  "deep_learning": {
+    "neural_network": {
+      "name": "신경망",
+      "description": "다층 퍼셉트론 신경망",
+      "python_script": "python/ml/deep_learning/neural_network.py",
+      "parameters": {
+        "hidden_layers": {
+          "type": "array",
+          "default": [128, 64, 32],
+          "description": "은닉층 노드 수"
+        },
+        "activation": {
+          "type": "string",
+          "options": ["relu", "sigmoid", "tanh", "leaky_relu"],
+          "default": "relu",
+          "description": "활성화 함수"
+        },
+        "optimizer": {
+          "type": "string",
+          "options": ["adam", "sgd", "rmsprop"],
+          "default": "adam",
+          "description": "최적화 알고리즘"
+        },
+        "epochs": {
+          "type": "integer",
+          "min": 10,
+          "max": 1000,
+          "default": 100,
+          "description": "훈련 에포크 수"
+        },
+        "batch_size": {
+          "type": "integer",
+          "min": 16,
+          "max": 512,
+          "default": 32,
+          "description": "배치 크기"
+        }
+      },
+      "output_format": ["model", "training_history", "predictions", "metrics"],
+      "complexity": 0.9,
+      "estimated_time_ms": 30000
+    },
+    "cnn": {
+      "name": "합성곱 신경망",
+      "description": "이미지 분류를 위한 CNN",
+      "python_script": "python/ml/deep_learning/cnn.py",
+      "parameters": {
+        "conv_layers": {
+          "type": "array",
+          "default": [32, 64, 128],
+          "description": "합성곱 층 필터 수"
+        },
+        "kernel_size": {
+          "type": "integer",
+          "min": 3,
+          "max": 7,
+          "default": 3,
+          "description": "커널 크기"
+        },
+        "pool_size": {
+          "type": "integer",
+          "min": 2,
+          "max": 4,
+          "default": 2,
+          "description": "풀링 크기"
+        },
+        "dropout_rate": {
+          "type": "number",
+          "min": 0.0,
+          "max": 0.8,
+          "default": 0.5,
+          "description": "드롭아웃 비율"
+        }
+      },
+      "output_format": ["model", "training_history", "predictions", "feature_maps"],
+      "complexity": 0.95,
+      "estimated_time_ms": 45000
+    },
+    "rnn": {
+      "name": "순환 신경망",
+      "description": "시계열 데이터를 위한 RNN/LSTM",
+      "python_script": "python/ml/deep_learning/rnn.py",
+      "parameters": {
+        "rnn_type": {
+          "type": "string",
+          "options": ["lstm", "gru", "simple_rnn"],
+          "default": "lstm",
+          "description": "RNN 유형"
+        },
+        "units": {
+          "type": "integer",
+          "min": 32,
+          "max": 256,
+          "default": 64,
+          "description": "RNN 유닛 수"
+        },
+        "sequence_length": {
+          "type": "integer",
+          "min": 5,
+          "max": 100,
+          "default": 10,
+          "description": "시퀀스 길이"
+        },
+        "bidirectional": {
+          "type": "boolean",
+          "default": false,
+          "description": "양방향 RNN 사용"
+        }
+      },
+      "output_format": ["model", "training_history", "predictions", "attention_weights"],
+      "complexity": 0.9,
+      "estimated_time_ms": 40000
     }
   },
   "visualization": {
-    "2d": {
-      "scatter": {
-        "script": "python/visualization/2d/scatter.py",
-        "class": "ScatterPlot",
-        "method": "create",
-        "description": "2D 산점도"
+    "basic_charts": {
+      "name": "기본 차트",
+      "description": "선 그래프, 막대 그래프 등 기본 시각화",
+      "python_script": "python/visualization/basic_charts.py",
+      "parameters": {
+        "chart_type": {
+          "type": "string",
+          "options": ["line", "bar", "scatter", "pie", "area"],
+          "default": "line",
+          "description": "차트 유형"
+        },
+        "style": {
+          "type": "string",
+          "options": ["default", "seaborn", "ggplot", "fivethirtyeight"],
+          "default": "seaborn",
+          "description": "차트 스타일"
+        },
+        "color_palette": {
+          "type": "string",
+          "options": ["Set1", "Set2", "viridis", "plasma", "custom"],
+          "default": "Set1",
+          "description": "색상 팔레트"
+        },
+        "interactive": {
+          "type": "boolean",
+          "default": false,
+          "description": "인터랙티브 차트 생성"
+        }
       },
-      "line": {
-        "script": "python/visualization/2d/line.py",
-        "class": "LinePlot",
-        "method": "create",
-        "description": "선 그래프"
-      },
-      "heatmap": {
-        "script": "python/visualization/2d/heatmap.py",
-        "class": "HeatmapPlot",
-        "method": "create",
-        "description": "히트맵"
-      }
+      "output_format": ["image", "html", "json"],
+      "complexity": 0.3,
+      "estimated_time_ms": 2000
     },
-    "3d": {
-      "scatter_3d": {
-        "script": "python/visualization/3d/scatter_3d.py",
-        "class": "Scatter3D",
-        "method": "create",
-        "description": "3D 산점도"
+    "statistical_plots": {
+      "name": "통계 플롯",
+      "description": "박스플롯, 히스토그램 등 통계 시각화",
+      "python_script": "python/visualization/statistical_plots.py",
+      "parameters": {
+        "plot_types": {
+          "type": "array",
+          "options": ["boxplot", "histogram", "violin", "swarm", "pair"],
+          "default": ["boxplot", "histogram"],
+          "description": "생성할 플롯 유형"
+        },
+        "show_statistics": {
+          "type": "boolean",
+          "default": true,
+          "description": "통계량 표시 여부"
+        },
+        "group_by": {
+          "type": "string",
+          "default": null,
+          "description": "그룹화 기준 컬럼"
+        }
       },
-      "surface": {
-        "script": "python/visualization/3d/surface.py",
-        "class": "SurfacePlot",
-        "method": "create",
-        "description": "3D 표면 그래프"
-      }
+      "output_format": ["plots", "statistics"],
+      "complexity": 0.4,
+      "estimated_time_ms": 3000
     },
-    "interactive": {
-      "plotly": {
-        "script": "python/visualization/interactive/plotly_charts.py",
-        "class": "PlotlyCharts",
-        "method": "create",
-        "description": "인터랙티브 Plotly 차트"
+    "ml_visualization": {
+      "name": "ML 시각화",
+      "description": "머신러닝 결과 시각화",
+      "python_script": "python/visualization/ml_visualization.py",
+      "parameters": {
+        "visualization_type": {
+          "type": "string",
+          "options": ["confusion_matrix", "roc_curve", "feature_importance", "learning_curve"],
+          "default": "confusion_matrix",
+          "description": "시각화 유형"
+        },
+        "normalize": {
+          "type": "boolean",
+          "default": true,
+          "description": "정규화 여부"
+        },
+        "show_metrics": {
+          "type": "boolean",
+          "default": true,
+          "description": "성능 지표 표시"
+        }
       },
-      "bokeh": {
-        "script": "python/visualization/interactive/bokeh_charts.py",
-        "class": "BokehCharts",
-        "method": "create",
-        "description": "인터랙티브 Bokeh 차트"
-      }
+      "output_format": ["plots", "metrics", "reports"],
+      "complexity": 0.6,
+      "estimated_time_ms": 4000
     }
   }
 }
