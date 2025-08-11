@@ -1,25 +1,22 @@
-// tools/data/data-loader.js
+// tools/data/data-loader.js - 완전한 데이터 로딩 시스템
 import { Logger } from '../../utils/logger.js';
-import { PythonExecutor } from '../common/python-executor.js';
-import { ResultFormatter } from '../common/result-formatter.js';
+import { ConfigLoader } from '../../utils/config-loader.js';
 import fs from 'fs/promises';
 import path from 'path';
 
 export class DataLoader {
   constructor() {
     this.logger = new Logger();
-    this.pythonExecutor = new PythonExecutor();
-    this.resultFormatter = new ResultFormatter();
-    this.supportedFormats = ['csv', 'xlsx', 'json', 'parquet', 'hdf5', 'txt', 'pickle'];
-    this.loadedData = new Map();
-    this.dataCache = new Map();
-    this.maxCacheSize = 100 * 1024 * 1024; // 100MB
-    this.currentCacheSize = 0;
+    this.configLoader = new ConfigLoader();
+    this.pythonExecutor = null;
+    this.supportedFormats = ['csv', 'xlsx', 'xls', 'json', 'txt', 'parquet', 'h5'];
+    this.maxFileSize = 500 * 1024 * 1024; // 500MB
+    this.loadHistory = [];
   }
 
   async initialize() {
     try {
-      await this.pythonExecutor.initialize();
+      await this.configLoader.initialize();
       this.logger.info('DataLoader 초기화 완료');
     } catch (error) {
       this.logger.error('DataLoader 초기화 실패:', error);
@@ -27,34 +24,38 @@ export class DataLoader {
     }
   }
 
+  setPythonExecutor(pythonExecutor) {
+    this.pythonExecutor = pythonExecutor;
+    this.logger.info('PythonExecutor 설정 완료');
+  }
+
   async loadData(filePath, options = {}) {
+    const startTime = Date.now();
+    
     try {
       this.logger.info(`데이터 로딩 시작: ${filePath}`);
-      
-      // 파일 존재 확인
+
+      // 파일 존재 및 크기 확인
       await this.validateFile(filePath);
-      
-      // 캐시 확인
-      const cacheKey = this.generateCacheKey(filePath, options);
-      if (this.dataCache.has(cacheKey)) {
-        this.logger.debug('캐시에서 데이터 로드');
-        return this.dataCache.get(cacheKey);
-      }
 
       // 파일 형식 감지
-      const fileFormat = this.detectFileFormat(filePath);
-      
+      const extension = path.extname(filePath).toLowerCase();
+      const format = this.detectFileFormat(extension);
+
       // 형식별 로딩
       let result;
-      switch (fileFormat) {
+      switch (format) {
         case 'csv':
           result = await this.loadCSV(filePath, options);
           break;
-        case 'xlsx':
-          result = await this.loadExcel(filePath, options);
-          break;
         case 'json':
           result = await this.loadJSON(filePath, options);
+          break;
+        case 'excel':
+          result = await this.loadExcel(filePath, options);
+          break;
+        case 'text':
+          result = await this.loadText(filePath, options);
           break;
         case 'parquet':
           result = await this.loadParquet(filePath, options);
@@ -62,229 +63,253 @@ export class DataLoader {
         case 'hdf5':
           result = await this.loadHDF5(filePath, options);
           break;
-        case 'txt':
-          result = await this.loadText(filePath, options);
-          break;
-        case 'pickle':
-          result = await this.loadPickle(filePath, options);
-          break;
         default:
-          throw new Error(`지원하지 않는 파일 형식: ${fileFormat}`);
+          throw new Error(`지원하지 않는 파일 형식: ${extension}`);
       }
 
-      // 결과 후처리
-      result = await this.postProcessData(result, filePath, options);
+      // 로딩 결과 후처리
+      const finalResult = await this.postProcessResult(result, options);
       
-      // 캐시에 저장
-      this.addToCache(cacheKey, result);
+      // 로딩 히스토리 기록
+      this.recordLoadHistory(filePath, format, Date.now() - startTime, true);
       
-      this.logger.info('데이터 로딩 완료', {
-        format: fileFormat,
-        shape: result.data_info?.shape,
-        columns: result.data_info?.columns?.length
-      });
-
-      return result;
+      this.logger.info(`데이터 로딩 완료: ${filePath} (${Date.now() - startTime}ms)`);
+      return finalResult;
 
     } catch (error) {
-      this.logger.error('데이터 로딩 실패:', error);
+      this.recordLoadHistory(filePath, 'unknown', Date.now() - startTime, false, error);
+      this.logger.error(`데이터 로딩 실패: ${filePath}`, error);
       throw error;
     }
   }
 
   async validateFile(filePath) {
     try {
-      await fs.access(filePath);
       const stats = await fs.stat(filePath);
       
       if (!stats.isFile()) {
-        throw new Error('경로가 파일이 아닙니다.');
+        throw new Error('지정된 경로가 파일이 아닙니다.');
       }
-      
+
+      if (stats.size > this.maxFileSize) {
+        throw new Error(`파일이 너무 큽니다: ${this.formatFileSize(stats.size)} (최대: ${this.formatFileSize(this.maxFileSize)})`);
+      }
+
       if (stats.size === 0) {
         throw new Error('파일이 비어있습니다.');
       }
-      
-      // 파일 크기 제한 (1GB)
-      const maxFileSize = 1024 * 1024 * 1024;
-      if (stats.size > maxFileSize) {
-        this.logger.warn(`큰 파일 감지: ${(stats.size / 1024 / 1024).toFixed(2)}MB`);
-      }
-      
-      return true;
+
     } catch (error) {
-      throw new Error(`파일 접근 실패: ${error.message}`);
+      if (error.code === 'ENOENT') {
+        throw new Error(`파일을 찾을 수 없습니다: ${filePath}`);
+      } else if (error.code === 'EACCES') {
+        throw new Error(`파일에 접근할 수 없습니다: ${filePath}`);
+      } else {
+        throw error;
+      }
     }
   }
 
-  detectFileFormat(filePath) {
-    const extension = path.extname(filePath).toLowerCase();
+  detectFileFormat(extension) {
     const formatMap = {
       '.csv': 'csv',
-      '.xlsx': 'xlsx',
-      '.xls': 'xlsx',
+      '.tsv': 'csv',
+      '.xlsx': 'excel',
+      '.xls': 'excel',
       '.json': 'json',
+      '.txt': 'text',
       '.parquet': 'parquet',
       '.h5': 'hdf5',
-      '.hdf5': 'hdf5',
-      '.txt': 'txt',
-      '.tsv': 'csv',
-      '.pkl': 'pickle',
-      '.pickle': 'pickle'
+      '.hdf5': 'hdf5'
     };
     
-    return formatMap[extension] || 'csv'; // 기본값은 CSV
+    return formatMap[extension] || 'unknown';
   }
 
   async loadCSV(filePath, options = {}) {
     const {
-      delimiter = ',',
+      encoding = 'utf8',
+      separator = 'auto',
       header = true,
       skipRows = 0,
       maxRows = null,
-      encoding = 'utf-8',
       columns = null,
-      dtypes = null,
-      naValues = ['', 'NULL', 'null', 'NaN', 'nan', 'N/A']
+      dtypes = null
     } = options;
 
     try {
-      const pythonCode = `
-import pandas as pd
-import numpy as np
-import json
-from pathlib import Path
-
-try:
-    # CSV 로딩 옵션 설정
-    read_options = {
-        'filepath_or_buffer': '${filePath}',
-        'sep': '${delimiter}',
-        'header': ${header ? '0' : 'None'},
-        'skiprows': ${skipRows},
-        'encoding': '${encoding}',
-        'na_values': ${JSON.stringify(naValues)}
-    }
-    
-    # 최대 행 수 제한
-    if ${maxRows}:
-        read_options['nrows'] = ${maxRows}
-    
-    # 컬럼 선택
-    if ${columns ? JSON.stringify(columns) : 'None'}:
-        read_options['usecols'] = ${JSON.stringify(columns)}
-    
-    # 데이터 타입 지정
-    if ${dtypes ? JSON.stringify(dtypes) : 'None'}:
-        read_options['dtype'] = ${JSON.stringify(dtypes)}
-    
-    # CSV 로드
-    df = pd.read_csv(**read_options)
-    
-    # 기본 정보 수집
-    data_info = {
-        'shape': list(df.shape),
-        'columns': list(df.columns),
-        'dtypes': {col: str(dtype) for col, dtype in df.dtypes.items()},
-        'memory_usage': int(df.memory_usage(deep=True).sum()),
-        'null_counts': df.isnull().sum().to_dict(),
-        'sample_data': df.head(5).to_dict('records') if len(df) > 0 else []
-    }
-    
-    # 기본 통계
-    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    datetime_columns = df.select_dtypes(include=['datetime64']).columns.tolist()
-    
-    statistics = {}
-    if numeric_columns:
-        desc_stats = df[numeric_columns].describe()
-        for col in numeric_columns:
-            statistics[col] = {
-                'count': int(desc_stats.loc['count', col]),
-                'mean': float(desc_stats.loc['mean', col]),
-                'std': float(desc_stats.loc['std', col]),
-                'min': float(desc_stats.loc['min', col]),
-                'q25': float(desc_stats.loc['25%', col]),
-                'median': float(desc_stats.loc['50%', col]),
-                'q75': float(desc_stats.loc['75%', col]),
-                'max': float(desc_stats.loc['max', col]),
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100)
-            }
-    
-    # 범주형 변수 통계
-    categorical_stats = {}
-    for col in categorical_columns:
-        if col in df.columns:
-            value_counts = df[col].value_counts()
-            categorical_stats[col] = {
-                'unique_count': int(df[col].nunique()),
-                'most_frequent': str(value_counts.index[0]) if len(value_counts) > 0 else None,
-                'most_frequent_count': int(value_counts.iloc[0]) if len(value_counts) > 0 else 0,
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100),
-                'top_values': value_counts.head(10).to_dict()
-            }
-    
-    # 결과 구성
-    result = {
-        'success': True,
-        'data_info': data_info,
-        'statistics': statistics,
-        'categorical_stats': categorical_stats,
-        'column_types': {
-            'numeric': numeric_columns,
-            'categorical': categorical_columns,
-            'datetime': datetime_columns
-        },
-        'file_info': {
-            'path': '${filePath}',
-            'format': 'csv',
-            'size_mb': round(data_info['memory_usage'] / 1024 / 1024, 2),
-            'load_options': read_options
-        }
-    }
-    
-    # 임시 데이터 저장 (분석용)
-    temp_file = './temp/loaded_data.csv'
-    df.to_csv(temp_file, index=False)
-    result['temp_file'] = temp_file
-    
-    print(json.dumps(result, ensure_ascii=False, default=str))
-    
-except Exception as e:
-    error_result = {
-        'success': False,
-        'error': str(e),
-        'error_type': type(e).__name__,
-        'file_path': '${filePath}'
-    }
-    print(json.dumps(error_result, ensure_ascii=False))
-`;
-
-      const executionResult = await this.pythonExecutor.execute(pythonCode, {
-        timeout: 120000 // 2분
-      });
-
-      if (executionResult.success) {
-        const result = JSON.parse(executionResult.output);
-        if (result.success) {
-          return result;
-        } else {
-          throw new Error(result.error);
-        }
-      } else {
-        throw new Error(executionResult.error);
+      // 파일 내용 읽기
+      const content = await fs.readFile(filePath, encoding);
+      const lines = content.split('\n').filter(line => line.trim());
+      
+      if (lines.length === 0) {
+        throw new Error('CSV 파일이 비어있습니다.');
       }
 
+      // 구분자 자동 감지
+      const delimiter = separator === 'auto' ? this.detectCSVDelimiter(lines[0]) : separator;
+      
+      // 헤더 처리
+      let headerRow = header ? lines[skipRows] : null;
+      let dataStartIndex = header ? skipRows + 1 : skipRows;
+      
+      const headers = headerRow ? 
+        headerRow.split(delimiter).map(h => h.trim().replace(/"/g, '')) :
+        null;
+
+      // 데이터 행 처리
+      const dataLines = lines.slice(dataStartIndex);
+      const maxDataRows = maxRows ? Math.min(maxRows, dataLines.length) : dataLines.length;
+      
+      const data = [];
+      const parseErrors = [];
+
+      for (let i = 0; i < maxDataRows; i++) {
+        try {
+          const values = this.parseCSVRow(dataLines[i], delimiter);
+          
+          // 컬럼 선택
+          if (columns && headers) {
+            const selectedValues = {};
+            columns.forEach(col => {
+              const colIndex = headers.indexOf(col);
+              if (colIndex !== -1) {
+                selectedValues[col] = values[colIndex];
+              }
+            });
+            data.push(selectedValues);
+          } else if (headers) {
+            const rowData = {};
+            headers.forEach((header, index) => {
+              rowData[header] = values[index] || null;
+            });
+            data.push(rowData);
+          } else {
+            data.push(values);
+          }
+        } catch (error) {
+          parseErrors.push({ row: i + dataStartIndex + 1, error: error.message });
+        }
+      }
+
+      // 데이터 타입 추론 및 변환
+      let processedData = data;
+      if (dtypes || options.inferTypes !== false) {
+        processedData = this.inferAndConvertTypes(data, dtypes);
+      }
+
+      // 기본 통계 계산
+      const statistics = this.calculateBasicStatistics(processedData, headers);
+
+      return {
+        data: processedData,
+        headers: headers || (data.length > 0 ? Object.keys(data[0]) : []),
+        rowCount: data.length,
+        columnCount: headers ? headers.length : (data.length > 0 ? data[0].length : 0),
+        filePath,
+        fileType: 'csv',
+        delimiter,
+        encoding,
+        statistics,
+        parseErrors,
+        metadata: {
+          hasHeader: header,
+          skippedRows: skipRows,
+          totalLines: lines.length,
+          originalSize: content.length
+        }
+      };
+
     } catch (error) {
-      this.logger.error('CSV 파일 로드 실패:', error);
-      throw new Error(`CSV 로딩 실패: ${error.message}`);
+      throw new Error(`CSV 파일 로드 실패: ${error.message}`);
+    }
+  }
+
+  async loadJSON(filePath, options = {}) {
+    const {
+      encoding = 'utf8',
+      flatten = false,
+      arrayPath = null,
+      maxDepth = 10
+    } = options;
+
+    try {
+      const content = await fs.readFile(filePath, encoding);
+      let data = JSON.parse(content);
+
+      // 배열 경로 처리
+      if (arrayPath) {
+        const pathParts = arrayPath.split('.');
+        for (const part of pathParts) {
+          if (data && typeof data === 'object') {
+            data = data[part];
+          } else {
+            throw new Error(`배열 경로를 찾을 수 없습니다: ${arrayPath}`);
+          }
+        }
+      }
+
+      // 데이터 구조 분석
+      const isArray = Array.isArray(data);
+      let processedData = data;
+      let headers = [];
+
+      if (isArray && data.length > 0) {
+        // 배열의 첫 번째 객체에서 헤더 추출
+        if (typeof data[0] === 'object' && data[0] !== null) {
+          headers = Object.keys(data[0]);
+          
+          // 플래튼 처리
+          if (flatten) {
+            processedData = data.map(item => this.flattenObject(item, maxDepth));
+            headers = processedData.length > 0 ? Object.keys(processedData[0]) : [];
+          }
+        }
+      } else if (typeof data === 'object' && data !== null) {
+        // 객체인 경우 배열로 변환
+        if (flatten) {
+          processedData = [this.flattenObject(data, maxDepth)];
+          headers = Object.keys(processedData[0]);
+        } else {
+          processedData = [data];
+          headers = Object.keys(data);
+        }
+      }
+
+      // 통계 계산
+      const statistics = this.calculateBasicStatistics(processedData, headers);
+
+      return {
+        data: processedData,
+        headers,
+        rowCount: Array.isArray(processedData) ? processedData.length : 1,
+        columnCount: headers.length,
+        filePath,
+        fileType: 'json',
+        encoding,
+        statistics,
+        metadata: {
+          originalType: isArray ? 'array' : 'object',
+          flattened: flatten,
+          arrayPath,
+          maxDepth: flatten ? maxDepth : null,
+          originalSize: content.length
+        }
+      };
+
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(`JSON 파일 형식이 유효하지 않습니다: ${error.message}`);
+      }
+      throw new Error(`JSON 파일 로드 실패: ${error.message}`);
     }
   }
 
   async loadExcel(filePath, options = {}) {
+    if (!this.pythonExecutor) {
+      throw new Error('Excel 파일 로드를 위해서는 PythonExecutor가 필요합니다.');
+    }
+
     const {
       sheetName = null,
       header = true,
@@ -299,17 +324,19 @@ except Exception as e:
 import pandas as pd
 import json
 import numpy as np
-from pathlib import Path
 
 try:
-    # Excel 파일 로드
+    # Excel 파일 및 시트 정보 확인
     excel_file = pd.ExcelFile('${filePath}')
     available_sheets = excel_file.sheet_names
     
     # 로드할 시트 결정
     sheet_to_load = ${sheetName ? `'${sheetName}'` : 'available_sheets[0]'}
     
-    # 옵션 설정
+    if sheet_to_load not in available_sheets:
+        raise ValueError(f"시트 '{sheet_to_load}'를 찾을 수 없습니다. 사용 가능한 시트: {available_sheets}")
+    
+    # 읽기 옵션 설정
     read_options = {
         'sheet_name': sheet_to_load,
         'header': ${header ? '0' : 'None'},
@@ -317,269 +344,150 @@ try:
         'engine': '${engine}'
     }
     
-    # 최대 행 수 제한
     if ${maxRows}:
         read_options['nrows'] = ${maxRows}
     
-    # 컬럼 선택
     if ${columns ? JSON.stringify(columns) : 'None'}:
         read_options['usecols'] = ${JSON.stringify(columns)}
     
-    # Excel 로드
+    # 데이터 로드
     df = pd.read_excel('${filePath}', **read_options)
     
-    # 기본 정보 수집
-    data_info = {
-        'shape': list(df.shape),
-        'columns': list(df.columns),
-        'dtypes': {col: str(dtype) for col, dtype in df.dtypes.items()},
-        'memory_usage': int(df.memory_usage(deep=True).sum()),
-        'null_counts': df.isnull().sum().to_dict(),
-        'sample_data': df.head(5).to_dict('records') if len(df) > 0 else [],
-        'available_sheets': available_sheets,
-        'loaded_sheet': sheet_to_load
-    }
+    # 헤더가 없는 경우 컬럼명 생성
+    if not ${header}:
+        df.columns = [f'column_{i}' for i in range(len(df.columns))]
     
-    # 통계 계산 (CSV와 동일한 로직)
-    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    datetime_columns = df.select_dtypes(include=['datetime64']).columns.tolist()
+    # 데이터 타입 정보
+    dtypes = {col: str(df[col].dtype) for col in df.columns}
     
-    statistics = {}
-    if numeric_columns:
-        desc_stats = df[numeric_columns].describe()
-        for col in numeric_columns:
-            statistics[col] = {
-                'count': int(desc_stats.loc['count', col]),
-                'mean': float(desc_stats.loc['mean', col]),
-                'std': float(desc_stats.loc['std', col]),
-                'min': float(desc_stats.loc['min', col]),
-                'q25': float(desc_stats.loc['25%', col]),
-                'median': float(desc_stats.loc['50%', col]),
-                'q75': float(desc_stats.loc['75%', col]),
-                'max': float(desc_stats.loc['max', col]),
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100)
-            }
+    # 기본 통계
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    basic_stats = {}
+    for col in numeric_columns:
+        basic_stats[col] = {
+            'mean': float(df[col].mean()) if not pd.isna(df[col].mean()) else None,
+            'std': float(df[col].std()) if not pd.isna(df[col].std()) else None,
+            'min': float(df[col].min()) if not pd.isna(df[col].min()) else None,
+            'max': float(df[col].max()) if not pd.isna(df[col].max()) else None,
+            'count': int(df[col].count())
+        }
     
-    # 범주형 변수 통계
-    categorical_stats = {}
-    for col in categorical_columns:
-        if col in df.columns:
-            value_counts = df[col].value_counts()
-            categorical_stats[col] = {
-                'unique_count': int(df[col].nunique()),
-                'most_frequent': str(value_counts.index[0]) if len(value_counts) > 0 else None,
-                'most_frequent_count': int(value_counts.iloc[0]) if len(value_counts) > 0 else 0,
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100),
-                'top_values': value_counts.head(10).to_dict()
-            }
+    # 누락값 정보
+    missing_info = {col: int(df[col].isnull().sum()) for col in df.columns}
     
-    # 결과 구성
+    # 결과 반환
     result = {
-        'success': True,
-        'data_info': data_info,
-        'statistics': statistics,
-        'categorical_stats': categorical_stats,
-        'column_types': {
-            'numeric': numeric_columns,
-            'categorical': categorical_columns,
-            'datetime': datetime_columns
+        'data': df.replace({np.nan: None}).to_dict('records'),
+        'headers': df.columns.tolist(),
+        'rowCount': len(df),
+        'columnCount': len(df.columns),
+        'filePath': '${filePath}',
+        'fileType': 'excel',
+        'sheetName': sheet_to_load,
+        'availableSheets': available_sheets,
+        'dtypes': dtypes,
+        'statistics': {
+            'basic_stats': basic_stats,
+            'missing_values': missing_info,
+            'total_missing': sum(missing_info.values()),
+            'missing_percentage': (sum(missing_info.values()) / (len(df) * len(df.columns))) * 100 if len(df) > 0 else 0
         },
-        'file_info': {
-            'path': '${filePath}',
-            'format': 'excel',
-            'size_mb': round(data_info['memory_usage'] / 1024 / 1024, 2),
-            'load_options': read_options
+        'metadata': {
+            'engine': '${engine}',
+            'hasHeader': ${header},
+            'skippedRows': ${skipRows}
         }
     }
-    
-    # 임시 데이터 저장
-    temp_file = './temp/loaded_data.csv'
-    df.to_csv(temp_file, index=False)
-    result['temp_file'] = temp_file
     
     print(json.dumps(result, ensure_ascii=False, default=str))
     
 except Exception as e:
     error_result = {
-        'success': False,
         'error': str(e),
         'error_type': type(e).__name__,
         'file_path': '${filePath}'
     }
     print(json.dumps(error_result, ensure_ascii=False))
+    raise
 `;
 
-      const executionResult = await this.pythonExecutor.execute(pythonCode, {
-        timeout: 120000
-      });
-
-      if (executionResult.success) {
-        const result = JSON.parse(executionResult.output);
-        if (result.success) {
-          return result;
-        } else {
-          throw new Error(result.error);
-        }
-      } else {
-        throw new Error(executionResult.error);
+      const result = await this.pythonExecutor.execute(pythonCode);
+      const parsedResult = JSON.parse(result.output);
+      
+      if (parsedResult.error) {
+        throw new Error(parsedResult.error);
       }
+      
+      return parsedResult;
 
     } catch (error) {
-      this.logger.error('Excel 파일 로드 실패:', error);
-      throw new Error(`Excel 로딩 실패: ${error.message}`);
+      throw new Error(`Excel 파일 로드 실패: ${error.message}`);
     }
   }
 
-  async loadJSON(filePath, options = {}) {
+  async loadText(filePath, options = {}) {
     const {
-      orient = 'records',
-      lines = false,
-      encoding = 'utf-8',
-      normalize = false,
-      maxLevel = null
+      encoding = 'utf8',
+      delimiter = '\n',
+      skipEmpty = true,
+      maxLines = null
     } = options;
 
     try {
-      const pythonCode = `
-import pandas as pd
-import json
-import numpy as np
-
-try:
-    # JSON 로딩 옵션
-    read_options = {
-        'orient': '${orient}',
-        'lines': ${lines},
-        'encoding': '${encoding}'
-    }
-    
-    # JSON 로드
-    if ${lines}:
-        df = pd.read_json('${filePath}', lines=True, encoding='${encoding}')
-    else:
-        df = pd.read_json('${filePath}', orient='${orient}', encoding='${encoding}')
-    
-    # 정규화 (필요시)
-    if ${normalize} and '${orient}' == 'records':
-        try:
-            # 중첩된 JSON 구조 평평하게 만들기
-            df = pd.json_normalize(df.to_dict('records')${maxLevel ? `, max_level=${maxLevel}` : ''})
-        except Exception as norm_error:
-            # 정규화 실패 시 원본 데이터 사용
-            pass
-    
-    # 기본 정보 수집
-    data_info = {
-        'shape': list(df.shape),
-        'columns': list(df.columns),
-        'dtypes': {col: str(dtype) for col, dtype in df.dtypes.items()},
-        'memory_usage': int(df.memory_usage(deep=True).sum()),
-        'null_counts': df.isnull().sum().to_dict(),
-        'sample_data': df.head(5).to_dict('records') if len(df) > 0 else []
-    }
-    
-    # 컬럼 타입 분류
-    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    datetime_columns = df.select_dtypes(include=['datetime64']).columns.tolist()
-    
-    # 통계 계산
-    statistics = {}
-    if numeric_columns:
-        desc_stats = df[numeric_columns].describe()
-        for col in numeric_columns:
-            statistics[col] = {
-                'count': int(desc_stats.loc['count', col]),
-                'mean': float(desc_stats.loc['mean', col]),
-                'std': float(desc_stats.loc['std', col]),
-                'min': float(desc_stats.loc['min', col]),
-                'q25': float(desc_stats.loc['25%', col]),
-                'median': float(desc_stats.loc['50%', col]),
-                'q75': float(desc_stats.loc['75%', col]),
-                'max': float(desc_stats.loc['max', col]),
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100)
-            }
-    
-    # 범주형 통계
-    categorical_stats = {}
-    for col in categorical_columns:
-        if col in df.columns:
-            value_counts = df[col].value_counts()
-            categorical_stats[col] = {
-                'unique_count': int(df[col].nunique()),
-                'most_frequent': str(value_counts.index[0]) if len(value_counts) > 0 else None,
-                'most_frequent_count': int(value_counts.iloc[0]) if len(value_counts) > 0 else 0,
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100),
-                'top_values': value_counts.head(10).to_dict()
-            }
-    
-    # 결과 구성
-    result = {
-        'success': True,
-        'data_info': data_info,
-        'statistics': statistics,
-        'categorical_stats': categorical_stats,
-        'column_types': {
-            'numeric': numeric_columns,
-            'categorical': categorical_columns,
-            'datetime': datetime_columns
-        },
-        'file_info': {
-            'path': '${filePath}',
-            'format': 'json',
-            'size_mb': round(data_info['memory_usage'] / 1024 / 1024, 2),
-            'load_options': read_options
-        }
-    }
-    
-    # 임시 데이터 저장
-    temp_file = './temp/loaded_data.csv'
-    df.to_csv(temp_file, index=False)
-    result['temp_file'] = temp_file
-    
-    print(json.dumps(result, ensure_ascii=False, default=str))
-    
-except Exception as e:
-    error_result = {
-        'success': False,
-        'error': str(e),
-        'error_type': type(e).__name__,
-        'file_path': '${filePath}'
-    }
-    print(json.dumps(error_result, ensure_ascii=False))
-`;
-
-      const executionResult = await this.pythonExecutor.execute(pythonCode, {
-        timeout: 120000
-      });
-
-      if (executionResult.success) {
-        const result = JSON.parse(executionResult.output);
-        if (result.success) {
-          return result;
-        } else {
-          throw new Error(result.error);
-        }
-      } else {
-        throw new Error(executionResult.error);
+      const content = await fs.readFile(filePath, encoding);
+      let lines = content.split(delimiter);
+      
+      if (skipEmpty) {
+        lines = lines.filter(line => line.trim() !== '');
       }
 
+      if (maxLines) {
+        lines = lines.slice(0, maxLines);
+      }
+
+      const data = lines.map((line, index) => ({
+        line_number: index + 1,
+        content: line,
+        length: line.length,
+        word_count: line.split(/\s+/).filter(word => word.length > 0).length
+      }));
+
+      return {
+        data,
+        headers: ['line_number', 'content', 'length', 'word_count'],
+        rowCount: data.length,
+        columnCount: 4,
+        filePath,
+        fileType: 'text',
+        encoding,
+        statistics: {
+          total_lines: data.length,
+          total_characters: content.length,
+          average_line_length: data.length > 0 ? content.length / data.length : 0,
+          total_words: data.reduce((sum, line) => sum + line.word_count, 0)
+        },
+        metadata: {
+          delimiter,
+          skipEmpty,
+          originalSize: content.length
+        }
+      };
+
     } catch (error) {
-      this.logger.error('JSON 파일 로드 실패:', error);
-      throw new Error(`JSON 로딩 실패: ${error.message}`);
+      throw new Error(`텍스트 파일 로드 실패: ${error.message}`);
     }
   }
 
   async loadParquet(filePath, options = {}) {
+    if (!this.pythonExecutor) {
+      throw new Error('Parquet 파일 로드를 위해서는 PythonExecutor가 필요합니다.');
+    }
+
     const {
       columns = null,
-      filters = null,
-      engine = 'pyarrow'
+      engine = 'pyarrow',
+      maxRows = null,
+      filters = null
     } = options;
 
     try {
@@ -589,125 +497,87 @@ import json
 import numpy as np
 
 try:
-    # Parquet 로딩 옵션
-    read_options = {
-        'engine': '${engine}'
-    }
+    # Parquet 파일 로드
+    read_options = {'engine': '${engine}'}
     
-    # 컬럼 선택
     if ${columns ? JSON.stringify(columns) : 'None'}:
         read_options['columns'] = ${JSON.stringify(columns)}
     
-    # 필터 적용 (pyarrow만 지원)
-    if ${filters ? JSON.stringify(filters) : 'None'} and '${engine}' == 'pyarrow':
-        read_options['filters'] = ${JSON.stringify(filters)}
-    
-    # Parquet 로드
     df = pd.read_parquet('${filePath}', **read_options)
     
-    # 기본 정보 수집
-    data_info = {
-        'shape': list(df.shape),
-        'columns': list(df.columns),
-        'dtypes': {col: str(dtype) for col, dtype in df.dtypes.items()},
-        'memory_usage': int(df.memory_usage(deep=True).sum()),
-        'null_counts': df.isnull().sum().to_dict(),
-        'sample_data': df.head(5).to_dict('records') if len(df) > 0 else []
-    }
+    # 행 수 제한
+    if ${maxRows}:
+        df = df.head(${maxRows})
     
-    # 컬럼 타입 분류 및 통계 (이전과 동일한 로직)
-    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    datetime_columns = df.select_dtypes(include=['datetime64']).columns.tolist()
+    # 데이터 타입 정보
+    dtypes = {col: str(df[col].dtype) for col in df.columns}
     
-    statistics = {}
-    if numeric_columns:
-        desc_stats = df[numeric_columns].describe()
-        for col in numeric_columns:
-            statistics[col] = {
-                'count': int(desc_stats.loc['count', col]),
-                'mean': float(desc_stats.loc['mean', col]),
-                'std': float(desc_stats.loc['std', col]),
-                'min': float(desc_stats.loc['min', col]),
-                'q25': float(desc_stats.loc['25%', col]),
-                'median': float(desc_stats.loc['50%', col]),
-                'q75': float(desc_stats.loc['75%', col]),
-                'max': float(desc_stats.loc['max', col]),
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100)
-            }
+    # 기본 통계
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    basic_stats = {}
+    for col in numeric_columns:
+        basic_stats[col] = {
+            'mean': float(df[col].mean()) if not pd.isna(df[col].mean()) else None,
+            'std': float(df[col].std()) if not pd.isna(df[col].std()) else None,
+            'min': float(df[col].min()) if not pd.isna(df[col].min()) else None,
+            'max': float(df[col].max()) if not pd.isna(df[col].max()) else None,
+            'count': int(df[col].count())
+        }
     
-    categorical_stats = {}
-    for col in categorical_columns:
-        if col in df.columns:
-            value_counts = df[col].value_counts()
-            categorical_stats[col] = {
-                'unique_count': int(df[col].nunique()),
-                'most_frequent': str(value_counts.index[0]) if len(value_counts) > 0 else None,
-                'most_frequent_count': int(value_counts.iloc[0]) if len(value_counts) > 0 else 0,
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100),
-                'top_values': value_counts.head(10).to_dict()
-            }
+    # 누락값 정보
+    missing_info = {col: int(df[col].isnull().sum()) for col in df.columns}
     
     result = {
-        'success': True,
-        'data_info': data_info,
-        'statistics': statistics,
-        'categorical_stats': categorical_stats,
-        'column_types': {
-            'numeric': numeric_columns,
-            'categorical': categorical_columns,
-            'datetime': datetime_columns
+        'data': df.replace({np.nan: None}).to_dict('records'),
+        'headers': df.columns.tolist(),
+        'rowCount': len(df),
+        'columnCount': len(df.columns),
+        'filePath': '${filePath}',
+        'fileType': 'parquet',
+        'dtypes': dtypes,
+        'statistics': {
+            'basic_stats': basic_stats,
+            'missing_values': missing_info,
+            'total_missing': sum(missing_info.values()),
+            'missing_percentage': (sum(missing_info.values()) / (len(df) * len(df.columns))) * 100 if len(df) > 0 else 0
         },
-        'file_info': {
-            'path': '${filePath}',
-            'format': 'parquet',
-            'size_mb': round(data_info['memory_usage'] / 1024 / 1024, 2),
-            'load_options': read_options
+        'metadata': {
+            'engine': '${engine}',
+            'selectedColumns': ${columns ? JSON.stringify(columns) : 'None'}
         }
     }
-    
-    # 임시 데이터 저장
-    temp_file = './temp/loaded_data.csv'
-    df.to_csv(temp_file, index=False)
-    result['temp_file'] = temp_file
     
     print(json.dumps(result, ensure_ascii=False, default=str))
     
 except Exception as e:
     error_result = {
-        'success': False,
         'error': str(e),
         'error_type': type(e).__name__,
-        'file_path': '${filePath}',
-        'suggestion': 'PythonExecutor를 초기화해주세요.'
+        'file_path': '${filePath}'
     }
     print(json.dumps(error_result, ensure_ascii=False))
+    raise
 `;
 
-      const executionResult = await this.pythonExecutor.execute(pythonCode, {
-        timeout: 120000
-      });
-
-      if (executionResult.success) {
-        const result = JSON.parse(executionResult.output);
-        if (result.success) {
-          return result;
-        } else {
-          throw new Error(result.error);
-        }
-      } else {
-        throw new Error(executionResult.error);
+      const result = await this.pythonExecutor.execute(pythonCode);
+      const parsedResult = JSON.parse(result.output);
+      
+      if (parsedResult.error) {
+        throw new Error(parsedResult.error);
       }
+      
+      return parsedResult;
 
     } catch (error) {
-      this.logger.error('Parquet 파일 로드 실패:', error);
-      throw new Error(`Parquet 로딩 실패: ${error.message}`);
+      throw new Error(`Parquet 파일 로드 실패: ${error.message}`);
     }
   }
 
   async loadHDF5(filePath, options = {}) {
+    if (!this.pythonExecutor) {
+      throw new Error('HDF5 파일 로드를 위해서는 PythonExecutor가 필요합니다.');
+    }
+
     const {
       key = null,
       columns = null,
@@ -723,1131 +593,875 @@ import pandas as pd
 import json
 import numpy as np
 import h5py
-from pathlib import Path
 
 try:
-    # HDF5 파일 구조 탐색
-    def explore_hdf5_structure(file_path, max_depth=3, current_depth=0):
-        structure = {}
-        if current_depth >= max_depth:
-            return structure
+    # HDF5 파일 구조 확인
+    with h5py.File('${filePath}', '${mode}') as h5file:
+        def get_structure(name, obj):
+            if isinstance(obj, h5py.Dataset):
+                return {
+                    'type': 'dataset',
+                    'shape': list(obj.shape),
+                    'dtype': str(obj.dtype)
+                }
+            elif isinstance(obj, h5py.Group):
+                return {
+                    'type': 'group',
+                    'keys': list(obj.keys())
+                }
         
-        with h5py.File(file_path, 'r') as f:
-            def visit_func(name, obj):
-                if isinstance(obj, h5py.Dataset):
-                    structure[name] = {
-                        'type': 'dataset',
-                        'shape': obj.shape,
-                        'dtype': str(obj.dtype),
-                        'size': obj.size
-                    }
-                elif isinstance(obj, h5py.Group):
-                    structure[name] = {
-                        'type': 'group',
-                        'keys': list(obj.keys())
-                    }
-            
-            f.visititems(visit_func)
-        
-        return structure
+        file_structure = {}
+        h5file.visititems(lambda name, obj: file_structure.update({name: get_structure(name, obj)}))
     
-    # 파일 구조 탐색
-    file_structure = explore_hdf5_structure('${filePath}')
+    # 키 결정
+    if ${key ? `'${key}'` : 'None'}:
+        used_key = '${key}'
+    else:
+        # pandas가 저장한 기본 키들 시도
+        possible_keys = ['data', 'df', 'table', list(file_structure.keys())[0] if file_structure else None]
+        used_key = None
+        for pk in possible_keys:
+            if pk and pk in file_structure:
+                used_key = pk
+                break
+        
+        if not used_key:
+            raise ValueError(f"키를 지정해주세요. 사용 가능한 키: {list(file_structure.keys())}")
     
     # 데이터 로드
-    df = None
-    used_key = None
+    read_options = {'key': used_key, 'mode': '${mode}'}
     
-    if ${key ? `'${key}'` : 'None'}:
-        # 특정 키로 데이터 로드
-        used_key = '${key}'
-        read_options = {'key': '${key}', 'mode': '${mode}'}
-        
-        # 추가 옵션 설정
-        if ${columns ? JSON.stringify(columns) : 'None'}:
-            read_options['columns'] = ${JSON.stringify(columns)}
-        if ${start !== null ? start : 'None'} is not None:
-            read_options['start'] = ${start}
-        if ${stop !== null ? stop : 'None'} is not None:
-            read_options['stop'] = ${stop}
-        if ${where ? `'${where}'` : 'None'}:
-            read_options['where'] = '${where}'
-        
-        df = pd.read_hdf('${filePath}', **read_options)
-    else:
-        # 기본 키 찾기
-        try:
-            with pd.HDFStore('${filePath}', mode='r') as store:
-                keys = store.keys()
-                if keys:
-                    used_key = keys[0]
-                    df = store[used_key]
-                else:
-                    raise ValueError("HDF5 파일에서 유효한 키를 찾을 수 없습니다.")
-        except Exception as e:
-            # HDFStore로 실패하면 h5py로 시도
-            with h5py.File('${filePath}', 'r') as f:
-                # 첫 번째 데이터셋 찾기
-                dataset_names = []
-                def find_datasets(name, obj):
-                    if isinstance(obj, h5py.Dataset):
-                        dataset_names.append(name)
-                f.visititems(find_datasets)
-                
-                if dataset_names:
-                    used_key = dataset_names[0]
-                    dataset = f[used_key]
-                    df = pd.DataFrame(dataset[:])
-                else:
-                    raise ValueError("HDF5 파일에서 데이터셋을 찾을 수 없습니다.")
+    if ${columns ? JSON.stringify(columns) : 'None'}:
+        read_options['columns'] = ${JSON.stringify(columns)}
     
-    # 기본 정보 수집
-    data_info = {
-        'shape': list(df.shape),
-        'columns': list(df.columns),
-        'dtypes': {col: str(dtype) for col, dtype in df.dtypes.items()},
-        'memory_usage': int(df.memory_usage(deep=True).sum()),
-        'null_counts': df.isnull().sum().to_dict(),
-        'sample_data': df.head(5).to_dict('records') if len(df) > 0 else [],
-        'hdf5_structure': file_structure,
-        'used_key': used_key
-    }
+    if ${start}:
+        read_options['start'] = ${start}
     
-    # 통계 계산
-    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    datetime_columns = df.select_dtypes(include=['datetime64']).columns.tolist()
+    if ${stop}:
+        read_options['stop'] = ${stop}
     
-    statistics = {}
-    if numeric_columns:
-        desc_stats = df[numeric_columns].describe()
-        for col in numeric_columns:
-            statistics[col] = {
-                'count': int(desc_stats.loc['count', col]),
-                'mean': float(desc_stats.loc['mean', col]),
-                'std': float(desc_stats.loc['std', col]),
-                'min': float(desc_stats.loc['min', col]),
-                'q25': float(desc_stats.loc['25%', col]),
-                'median': float(desc_stats.loc['50%', col]),
-                'q75': float(desc_stats.loc['75%', col]),
-                'max': float(desc_stats.loc['max', col]),
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100)
-            }
+    if '${where}':
+        read_options['where'] = '${where}'
     
-    categorical_stats = {}
-    for col in categorical_columns:
-        if col in df.columns:
-            value_counts = df[col].value_counts()
-            categorical_stats[col] = {
-                'unique_count': int(df[col].nunique()),
-                'most_frequent': str(value_counts.index[0]) if len(value_counts) > 0 else None,
-                'most_frequent_count': int(value_counts.iloc[0]) if len(value_counts) > 0 else 0,
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100),
-                'top_values': value_counts.head(10).to_dict()
-            }
+    df = pd.read_hdf('${filePath}', **read_options)
+    
+    # 데이터 타입 정보
+    dtypes = {col: str(df[col].dtype) for col in df.columns}
+    
+    # 기본 통계
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    basic_stats = {}
+    for col in numeric_columns:
+        basic_stats[col] = {
+            'mean': float(df[col].mean()) if not pd.isna(df[col].mean()) else None,
+            'std': float(df[col].std()) if not pd.isna(df[col].std()) else None,
+            'min': float(df[col].min()) if not pd.isna(df[col].min()) else None,
+            'max': float(df[col].max()) if not pd.isna(df[col].max()) else None,
+            'count': int(df[col].count())
+        }
+    
+    # 누락값 정보
+    missing_info = {col: int(df[col].isnull().sum()) for col in df.columns}
     
     result = {
-        'success': True,
-        'data_info': data_info,
-        'statistics': statistics,
-        'categorical_stats': categorical_stats,
-        'column_types': {
-            'numeric': numeric_columns,
-            'categorical': categorical_columns,
-            'datetime': datetime_columns
+        'data': df.replace({np.nan: None}).to_dict('records'),
+        'headers': df.columns.tolist(),
+        'rowCount': len(df),
+        'columnCount': len(df.columns),
+        'filePath': '${filePath}',
+        'fileType': 'hdf5',
+        'dtypes': dtypes,
+        'statistics': {
+            'basic_stats': basic_stats,
+            'missing_values': missing_info,
+            'total_missing': sum(missing_info.values()),
+            'missing_percentage': (sum(missing_info.values()) / (len(df) * len(df.columns))) * 100 if len(df) > 0 else 0
         },
-        'file_info': {
-            'path': '${filePath}',
-            'format': 'hdf5',
-            'size_mb': round(data_info['memory_usage'] / 1024 / 1024, 2),
-            'load_options': read_options if '${key}' else {}
+        'metadata': {
+            'mode': '${mode}',
+            'used_key': used_key,
+            'file_structure': file_structure,
+            'available_keys': list(file_structure.keys())
         }
     }
-    
-    # 임시 데이터 저장
-    temp_file = './temp/loaded_data.csv'
-    df.to_csv(temp_file, index=False)
-    result['temp_file'] = temp_file
     
     print(json.dumps(result, ensure_ascii=False, default=str))
     
 except Exception as e:
     error_result = {
-        'success': False,
         'error': str(e),
         'error_type': type(e).__name__,
         'file_path': '${filePath}'
     }
     print(json.dumps(error_result, ensure_ascii=False))
+    raise
 `;
 
-      const executionResult = await this.pythonExecutor.execute(pythonCode, {
-        timeout: 120000
-      });
-
-      if (executionResult.success) {
-        const result = JSON.parse(executionResult.output);
-        if (result.success) {
-          return result;
-        } else {
-          throw new Error(result.error);
-        }
-      } else {
-        throw new Error(executionResult.error);
-      }
-
-    } catch (error) {
-      this.logger.error('HDF5 파일 로드 실패:', error);
-      throw new Error(`HDF5 로딩 실패: ${error.message}`);
-    }
-  }
-
-  async loadText(filePath, options = {}) {
-    const {
-      delimiter = null,
-      encoding = 'utf-8',
-      skipLines = 0,
-      maxLines = null,
-      parseNumbers = true
-    } = options;
-
-    try {
-      const pythonCode = `
-import pandas as pd
-import json
-import numpy as np
-from pathlib import Path
-import re
-
-try:
-    # 텍스트 파일 읽기
-    with open('${filePath}', 'r', encoding='${encoding}') as f:
-        lines = f.readlines()
-    
-    # 스키핑과 라인 제한
-    if ${skipLines} > 0:
-        lines = lines[${skipLines}:]
-    
-    if ${maxLines}:
-        lines = lines[:${maxLines}]
-    
-    # 구분자가 지정된 경우 CSV로 처리
-    if ${delimiter ? `'${delimiter}'` : 'None'}:
-        # 임시 파일로 저장 후 CSV로 로드
-        temp_path = './temp/temp_text.csv'
-        with open(temp_path, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
-        
-        df = pd.read_csv(temp_path, sep='${delimiter}')
-    else:
-        # 일반 텍스트 처리
-        # 숫자 패턴 찾기
-        if ${parseNumbers}:
-            processed_lines = []
-            for line in lines:
-                # 숫자와 공백으로만 이루어진 라인 찾기
-                numbers = re.findall(r'-?\\d+\\.?\\d*', line.strip())
-                if numbers:
-                    processed_lines.append(numbers)
-                else:
-                    # 텍스트 라인은 그대로 유지
-                    processed_lines.append([line.strip()])
-            
-            # 최대 컬럼 수 찾기
-            max_cols = max(len(row) for row in processed_lines) if processed_lines else 1
-            
-            # 모든 행을 같은 길이로 만들기
-            for row in processed_lines:
-                while len(row) < max_cols:
-                    row.append('')
-            
-            # DataFrame 생성
-            columns = [f'col_{i}' for i in range(max_cols)]
-            df = pd.DataFrame(processed_lines, columns=columns)
-            
-            # 숫자 컬럼 변환 시도
-            for col in df.columns:
-                try:
-                    df[col] = pd.to_numeric(df[col], errors='ignore')
-                except:
-                    pass
-        else:
-            # 텍스트 라인을 그대로 DataFrame으로
-            df = pd.DataFrame({'text': [line.strip() for line in lines]})
-    
-    # 기본 정보 수집
-    data_info = {
-        'shape': list(df.shape),
-        'columns': list(df.columns),
-        'dtypes': {col: str(dtype) for col, dtype in df.dtypes.items()},
-        'memory_usage': int(df.memory_usage(deep=True).sum()),
-        'null_counts': df.isnull().sum().to_dict(),
-        'sample_data': df.head(5).to_dict('records') if len(df) > 0 else [],
-        'total_lines': len(lines),
-        'processed_lines': len(df)
-    }
-    
-    # 통계 계산
-    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    
-    statistics = {}
-    if numeric_columns:
-        desc_stats = df[numeric_columns].describe()
-        for col in numeric_columns:
-            statistics[col] = {
-                'count': int(desc_stats.loc['count', col]),
-                'mean': float(desc_stats.loc['mean', col]),
-                'std': float(desc_stats.loc['std', col]),
-                'min': float(desc_stats.loc['min', col]),
-                'q25': float(desc_stats.loc['25%', col]),
-                'median': float(desc_stats.loc['50%', col]),
-                'q75': float(desc_stats.loc['75%', col]),
-                'max': float(desc_stats.loc['max', col]),
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100)
-            }
-    
-    categorical_stats = {}
-    for col in categorical_columns:
-        if col in df.columns:
-            value_counts = df[col].value_counts()
-            categorical_stats[col] = {
-                'unique_count': int(df[col].nunique()),
-                'most_frequent': str(value_counts.index[0]) if len(value_counts) > 0 else None,
-                'most_frequent_count': int(value_counts.iloc[0]) if len(value_counts) > 0 else 0,
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100),
-                'top_values': value_counts.head(10).to_dict()
-            }
-    
-    result = {
-        'success': True,
-        'data_info': data_info,
-        'statistics': statistics,
-        'categorical_stats': categorical_stats,
-        'column_types': {
-            'numeric': numeric_columns,
-            'categorical': categorical_columns,
-            'datetime': []
-        },
-        'file_info': {
-            'path': '${filePath}',
-            'format': 'text',
-            'size_mb': round(data_info['memory_usage'] / 1024 / 1024, 2),
-            'load_options': {
-                'delimiter': ${delimiter ? `'${delimiter}'` : 'None'},
-                'encoding': '${encoding}',
-                'parse_numbers': ${parseNumbers}
-            }
-        }
-    }
-    
-    # 임시 데이터 저장
-    temp_file = './temp/loaded_data.csv'
-    df.to_csv(temp_file, index=False)
-    result['temp_file'] = temp_file
-    
-    print(json.dumps(result, ensure_ascii=False, default=str))
-    
-except Exception as e:
-    error_result = {
-        'success': False,
-        'error': str(e),
-        'error_type': type(e).__name__,
-        'file_path': '${filePath}'
-    }
-    print(json.dumps(error_result, ensure_ascii=False))
-`;
-
-      const executionResult = await this.pythonExecutor.execute(pythonCode, {
-        timeout: 120000
-      });
-
-      if (executionResult.success) {
-        const result = JSON.parse(executionResult.output);
-        if (result.success) {
-          return result;
-        } else {
-          throw new Error(result.error);
-        }
-      } else {
-        throw new Error(executionResult.error);
-      }
-
-    } catch (error) {
-      this.logger.error('텍스트 파일 로드 실패:', error);
-      throw new Error(`텍스트 로딩 실패: ${error.message}`);
-    }
-  }
-
-  async loadPickle(filePath, options = {}) {
-    try {
-      const pythonCode = `
-import pandas as pd
-import pickle
-import json
-import numpy as np
-
-try:
-    # Pickle 파일 로드
-    with open('${filePath}', 'rb') as f:
-        data = pickle.load(f)
-    
-    # 데이터 타입에 따른 처리
-    if isinstance(data, pd.DataFrame):
-        df = data
-    elif isinstance(data, dict):
-        # 딕셔너리를 DataFrame으로 변환 시도
-        try:
-            df = pd.DataFrame(data)
-        except:
-            # 변환 실패시 딕셔너리 정보만 제공
-            result = {
-                'success': True,
-                'data_type': 'dictionary',
-                'keys': list(data.keys()),
-                'data_info': {
-                    'type': 'dict',
-                    'keys_count': len(data.keys()),
-                    'sample_keys': list(data.keys())[:10]
-                },
-                'file_info': {
-                    'path': '${filePath}',
-                    'format': 'pickle'
-                }
-            }
-            print(json.dumps(result, ensure_ascii=False, default=str))
-            exit()
-    elif isinstance(data, (list, tuple)):
-        # 리스트/튜플을 DataFrame으로 변환 시도
-        try:
-            df = pd.DataFrame(data)
-        except:
-            # 변환 실패시 리스트 정보만 제공
-            result = {
-                'success': True,
-                'data_type': 'list',
-                'length': len(data),
-                'data_info': {
-                    'type': 'list',
-                    'length': len(data),
-                    'sample_items': data[:5] if len(data) > 0 else []
-                },
-                'file_info': {
-                    'path': '${filePath}',
-                    'format': 'pickle'
-                }
-            }
-            print(json.dumps(result, ensure_ascii=False, default=str))
-            exit()
-    else:
-        # 기타 객체 타입
-        result = {
-            'success': True,
-            'data_type': str(type(data)),
-            'data_info': {
-                'type': str(type(data)),
-                'str_representation': str(data)[:500]
-            },
-            'file_info': {
-                'path': '${filePath}',
-                'format': 'pickle'
-            }
-        }
-        print(json.dumps(result, ensure_ascii=False, default=str))
-        exit()
-    
-    # DataFrame 처리
-    data_info = {
-        'shape': list(df.shape),
-        'columns': list(df.columns),
-        'dtypes': {col: str(dtype) for col, dtype in df.dtypes.items()},
-        'memory_usage': int(df.memory_usage(deep=True).sum()),
-        'null_counts': df.isnull().sum().to_dict(),
-        'sample_data': df.head(5).to_dict('records') if len(df) > 0 else []
-    }
-    
-    # 통계 계산
-    numeric_columns = df.select_dtypes(include=[np.number]).columns.tolist()
-    categorical_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    datetime_columns = df.select_dtypes(include=['datetime64']).columns.tolist()
-    
-    statistics = {}
-    if numeric_columns:
-        desc_stats = df[numeric_columns].describe()
-        for col in numeric_columns:
-            statistics[col] = {
-                'count': int(desc_stats.loc['count', col]),
-                'mean': float(desc_stats.loc['mean', col]),
-                'std': float(desc_stats.loc['std', col]),
-                'min': float(desc_stats.loc['min', col]),
-                'q25': float(desc_stats.loc['25%', col]),
-                'median': float(desc_stats.loc['50%', col]),
-                'q75': float(desc_stats.loc['75%', col]),
-                'max': float(desc_stats.loc['max', col]),
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100)
-            }
-    
-    categorical_stats = {}
-    for col in categorical_columns:
-        if col in df.columns:
-            value_counts = df[col].value_counts()
-            categorical_stats[col] = {
-                'unique_count': int(df[col].nunique()),
-                'most_frequent': str(value_counts.index[0]) if len(value_counts) > 0 else None,
-                'most_frequent_count': int(value_counts.iloc[0]) if len(value_counts) > 0 else 0,
-                'missing_count': int(df[col].isnull().sum()),
-                'missing_percentage': float(df[col].isnull().sum() / len(df) * 100),
-                'top_values': value_counts.head(10).to_dict()
-            }
-    
-    result = {
-        'success': True,
-        'data_info': data_info,
-        'statistics': statistics,
-        'categorical_stats': categorical_stats,
-        'column_types': {
-            'numeric': numeric_columns,
-            'categorical': categorical_columns,
-            'datetime': datetime_columns
-        },
-        'file_info': {
-            'path': '${filePath}',
-            'format': 'pickle',
-            'size_mb': round(data_info['memory_usage'] / 1024 / 1024, 2)
-        }
-    }
-    
-    # 임시 데이터 저장
-    temp_file = './temp/loaded_data.csv'
-    df.to_csv(temp_file, index=False)
-    result['temp_file'] = temp_file
-    
-    print(json.dumps(result, ensure_ascii=False, default=str))
-    
-except Exception as e:
-    error_result = {
-        'success': False,
-        'error': str(e),
-        'error_type': type(e).__name__,
-        'file_path': '${filePath}'
-    }
-    print(json.dumps(error_result, ensure_ascii=False))
-`;
-
-      const executionResult = await this.pythonExecutor.execute(pythonCode, {
-        timeout: 120000
-      });
-
-      if (executionResult.success) {
-        const result = JSON.parse(executionResult.output);
-        if (result.success) {
-          return result;
-        } else {
-          throw new Error(result.error);
-        }
-      } else {
-        throw new Error(executionResult.error);
-      }
-
-    } catch (error) {
-      this.logger.error('Pickle 파일 로드 실패:', error);
-      throw new Error(`Pickle 로딩 실패: ${error.message}`);
-    }
-  }
-
-  // 데이터 후처리 메서드들
-  async postProcessData(result, filePath, options) {
-    try {
-      // 메타데이터 추가
-      result.metadata = {
-        loadedAt: new Date().toISOString(),
-        filePath: filePath,
-        loadOptions: options,
-        dataId: this.generateDataId(filePath)
-      };
-
-      // 데이터 품질 평가
-      result.quality_assessment = await this.assessDataQuality(result);
-
-      // 권장사항 생성
-      result.recommendations = this.generateRecommendations(result);
-
-      return result;
-
-    } catch (error) {
-      this.logger.error('데이터 후처리 실패:', error);
-      return result; // 후처리 실패해도 원본 결과는 반환
-    }
-  }
-
-  async assessDataQuality(result) {
-    const assessment = {
-      overall_score: 0,
-      completeness: 0,
-      consistency: 0,
-      validity: 0,
-      issues: [],
-      strengths: []
-    };
-
-    try {
-      const { data_info, statistics } = result;
+      const result = await this.pythonExecutor.execute(pythonCode);
+      const parsedResult = JSON.parse(result.output);
       
-      // 완전성 평가 (결측값 비율)
-      const totalCells = data_info.shape[0] * data_info.shape[1];
-      const nullCells = Object.values(data_info.null_counts || {})
-        .reduce((sum, count) => sum + count, 0);
-      assessment.completeness = Math.max(0, 1 - (nullCells / totalCells));
-
-      // 일관성 평가 (데이터 타입 일관성)
-      const numericColumns = result.column_types?.numeric?.length || 0;
-      const totalColumns = data_info.columns.length;
-      assessment.consistency = totalColumns > 0 ? 
-        (numericColumns + result.column_types?.datetime?.length || 0) / totalColumns : 0;
-
-      // 유효성 평가 (이상값 검출)
-      let validityScore = 1.0;
-      if (statistics) {
-        for (const [column, stats] of Object.entries(statistics)) {
-          if (stats.std === 0) {
-            assessment.issues.push(`${column}: 모든 값이 동일합니다.`);
-            validityScore -= 0.1;
-          }
-          if (stats.missing_percentage > 50) {
-            assessment.issues.push(`${column}: 결측값이 50% 이상입니다.`);
-            validityScore -= 0.2;
-          }
-        }
+      if (parsedResult.error) {
+        throw new Error(parsedResult.error);
       }
-      assessment.validity = Math.max(0, validityScore);
-
-      // 전체 점수 계산
-      assessment.overall_score = (
-        assessment.completeness * 0.4 +
-        assessment.consistency * 0.3 +
-        assessment.validity * 0.3
-      );
-
-      // 강점 식별
-      if (assessment.completeness > 0.9) {
-        assessment.strengths.push('데이터가 거의 완전합니다.');
-      }
-      if (totalColumns > 10) {
-        assessment.strengths.push('풍부한 특성을 가지고 있습니다.');
-      }
-      if (data_info.shape[0] > 1000) {
-        assessment.strengths.push('충분한 양의 데이터가 있습니다.');
-      }
+      
+      return parsedResult;
 
     } catch (error) {
-      this.logger.error('데이터 품질 평가 실패:', error);
+      throw new Error(`HDF5 파일 로드 실패: ${error.message}`);
     }
-
-    return assessment;
-  }
-
-  generateRecommendations(result) {
-    const recommendations = [];
-
-    try {
-      const { data_info, statistics, quality_assessment } = result;
-
-      // 데이터 품질 기반 권장사항
-      if (quality_assessment?.completeness < 0.8) {
-        recommendations.push({
-          type: 'data_cleaning',
-          priority: 'high',
-          message: '결측값 처리가 필요합니다.',
-          action: 'missing_value_imputation'
-        });
-      }
-
-      // 데이터 크기 기반 권장사항
-      if (data_info.shape[0] < 100) {
-        recommendations.push({
-          type: 'sample_size',
-          priority: 'medium',
-          message: '데이터 샘플이 부족할 수 있습니다.',
-          action: 'collect_more_data'
-        });
-      }
-
-      // 특성 수 기반 권장사항
-      if (data_info.shape[1] > 50) {
-        recommendations.push({
-          type: 'dimensionality',
-          priority: 'medium',
-          message: '차원 축소를 고려해보세요.',
-          action: 'feature_selection_or_pca'
-        });
-      }
-
-      // 데이터 타입 기반 권장사항
-      const numericRatio = (result.column_types?.numeric?.length || 0) / data_info.shape[1];
-      if (numericRatio < 0.3) {
-        recommendations.push({
-          type: 'feature_engineering',
-          priority: 'medium',
-          message: '범주형 변수 인코딩이 필요할 수 있습니다.',
-          action: 'categorical_encoding'
-        });
-      }
-
-      // 통계 기반 권장사항
-      if (statistics) {
-        for (const [column, stats] of Object.entries(statistics)) {
-          if (Math.abs(stats.mean) > 3 * stats.std && stats.std > 0) {
-            recommendations.push({
-              type: 'outlier_detection',
-              priority: 'medium',
-              message: `${column} 컬럼에 이상값이 있을 수 있습니다.`,
-              action: 'outlier_analysis'
-            });
-            break; // 한 번만 추가
-          }
-        }
-      }
-
-    } catch (error) {
-      this.logger.error('권장사항 생성 실패:', error);
-    }
-
-    return recommendations;
-  }
-
-  // 캐시 관리 메서드들
-  generateCacheKey(filePath, options) {
-    const optionsStr = JSON.stringify(options);
-    return `${filePath}_${Buffer.from(optionsStr).toString('base64')}`;
-  }
-
-  addToCache(key, data) {
-    const dataSize = JSON.stringify(data).length;
-    
-    // 캐시 크기 확인
-    if (this.currentCacheSize + dataSize > this.maxCacheSize) {
-      this.clearOldCache();
-    }
-    
-    this.dataCache.set(key, {
-      data,
-      timestamp: Date.now(),
-      size: dataSize
-    });
-    
-    this.currentCacheSize += dataSize;
-  }
-
-  clearOldCache() {
-    const entries = Array.from(this.dataCache.entries());
-    entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
-    
-    // 오래된 것부터 절반 삭제
-    const toDelete = Math.floor(entries.length / 2);
-    for (let i = 0; i < toDelete; i++) {
-      const [key, value] = entries[i];
-      this.currentCacheSize -= value.size;
-      this.dataCache.delete(key);
-    }
-    
-    this.logger.debug(`캐시 정리 완료: ${toDelete}개 항목 삭제`);
   }
 
   // 유틸리티 메서드들
-  generateDataId(filePath) {
-    return Buffer.from(filePath + Date.now()).toString('base64').substring(0, 16);
-  }
-
-  getSupportedFormats() {
-    return [...this.supportedFormats];
-  }
-
-  getCacheInfo() {
-    return {
-      cacheSize: this.dataCache.size,
-      currentCacheSizeMB: Math.round(this.currentCacheSize / 1024 / 1024 * 100) / 100,
-      maxCacheSizeMB: this.maxCacheSize / 1024 / 1024
-    };
-  }
-
-  // 데이터 변환 메서드들
-  async validateData(data, validationRules = {}) {
-    // 데이터 검증 로직 구현
-    const validation = {
-      isValid: true,
-      errors: [],
-      warnings: []
-    };
-
-    // 기본 검증 규칙들...
+  detectCSVDelimiter(line) {
+    const delimiters = [',', ';', '\t', '|'];
+    const counts = delimiters.map(delim => ({
+      delimiter: delim,
+      count: (line.match(new RegExp('\\' + delim, 'g')) || []).length
+    }));
     
-    return validation;
+    counts.sort((a, b) => b.count - a.count);
+    return counts[0].count > 0 ? counts[0].delimiter : ',';
   }
 
-  async transformData(data, transformOptions = {}) {
-    // 데이터 변환 로직 구현
-    try {
-      const transformedData = { ...data };
+  parseCSVRow(row, delimiter) {
+    const values = [];
+    let currentValue = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < row.length; i++) {
+      const char = row[i];
       
-      // 변환 작업들...
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === delimiter && !inQuotes) {
+        values.push(currentValue.trim());
+        currentValue = '';
+      } else {
+        currentValue += char;
+      }
+    }
+    
+    values.push(currentValue.trim());
+    return values;
+  }
+
+  inferAndConvertTypes(data, explicitTypes = null) {
+    if (!data || data.length === 0) return data;
+    
+    const headers = Object.keys(data[0]);
+    const typeMap = {};
+    
+    // 타입 추론
+    headers.forEach(header => {
+      if (explicitTypes && explicitTypes[header]) {
+        typeMap[header] = explicitTypes[header];
+      } else {
+        typeMap[header] = this.inferColumnType(data, header);
+      }
+    });
+    
+    // 타입 변환
+    return data.map(row => {
+      const convertedRow = {};
+      headers.forEach(header => {
+        const value = row[header];
+        convertedRow[header] = this.convertValue(value, typeMap[header]);
+      });
+      return convertedRow;
+    });
+  }
+
+  // inferColumnType 메서드 계속
+  inferColumnType(data, columnName) {
+    const sampleSize = Math.min(100, data.length);
+    const values = data.slice(0, sampleSize).map(row => row[columnName]).filter(val => val !== null && val !== '' && val !== undefined);
+    
+    if (values.length === 0) return 'string';
+    
+    let numericCount = 0;
+    let integerCount = 0;
+    let dateCount = 0;
+    let booleanCount = 0;
+    
+    values.forEach(value => {
+      const strValue = String(value).trim();
       
-      return transformedData;
-    } catch (error) {
-      this.logger.error('데이터 변환 실패:', error);
-      throw error;
-    }
-  }
-
-  // 전처리 메서드들 (pipeline-manager에서 사용)
-  async handleMissingValues(data, options = {}) {
-    const { strategy = 'drop', fillValue = null } = options;
-    
-    const pythonCode = `
-import pandas as pd
-import numpy as np
-import json
-
-try:
-    # 임시 파일에서 데이터 로드
-    df = pd.read_csv('./temp/loaded_data.csv')
-    
-    strategy = '${strategy}'
-    
-    if strategy == 'drop':
-        # 결측값이 있는 행 삭제
-        df_cleaned = df.dropna()
-    elif strategy == 'fill_mean':
-        # 수치형 컬럼은 평균으로, 범주형은 최빈값으로
-        df_cleaned = df.copy()
-        for col in df.columns:
-            if df[col].dtype in ['int64', 'float64']:
-                df_cleaned[col].fillna(df[col].mean(), inplace=True)
-            else:
-                df_cleaned[col].fillna(df[col].mode()[0] if len(df[col].mode()) > 0 else 'Unknown', inplace=True)
-    elif strategy == 'fill_value':
-        # 지정된 값으로 채우기
-        fill_val = ${fillValue ? `'${fillValue}'` : 'None'}
-        df_cleaned = df.fillna(fill_val)
-    else:
-        df_cleaned = df.copy()
-    
-    # 결과 정보
-    result = {
-        'success': True,
-        'original_shape': list(df.shape),
-        'cleaned_shape': list(df_cleaned.shape),
-        'rows_removed': df.shape[0] - df_cleaned.shape[0],
-        'strategy_used': strategy,
-        'missing_values_before': df.isnull().sum().sum(),
-        'missing_values_after': df_cleaned.isnull().sum().sum()
-    }
-    
-    # 정리된 데이터 저장
-    temp_file = './temp/cleaned_data.csv'
-    df_cleaned.to_csv(temp_file, index=False)
-    result['temp_file'] = temp_file
-    
-    print(json.dumps(result, ensure_ascii=False, default=str))
-    
-except Exception as e:
-    error_result = {
-        'success': False,
-        'error': str(e),
-        'error_type': type(e).__name__
-    }
-    print(json.dumps(error_result, ensure_ascii=False))
-`;
-
-    const executionResult = await this.pythonExecutor.execute(pythonCode);
-    
-    if (executionResult.success) {
-      const result = JSON.parse(executionResult.output);
-      return result;
-    } else {
-      throw new Error(executionResult.error);
-    }
-  }
-
-  async normalizeData(data, options = {}) {
-    const { method = 'standard', columns = null } = options;
-    
-    const pythonCode = `
-import pandas as pd
-import numpy as np
-import json
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
-
-try:
-    # 데이터 로드
-    df = pd.read_csv('./temp/loaded_data.csv')
-    
-    # 정규화할 컬럼 선택
-    if ${columns ? JSON.stringify(columns) : 'None'}:
-        cols_to_normalize = ${JSON.stringify(columns)}
-    else:
-        # 수치형 컬럼만 선택
-        cols_to_normalize = df.select_dtypes(include=[np.number]).columns.tolist()
-    
-    df_normalized = df.copy()
-    scaler_info = {}
-    
-    if '${method}' == 'standard':
-        scaler = StandardScaler()
-    elif '${method}' == 'minmax':
-        scaler = MinMaxScaler()
-    elif '${method}' == 'robust':
-        scaler = RobustScaler()
-    else:
-        raise ValueError(f"지원하지 않는 정규화 방법: ${method}")
-    
-    # 정규화 적용
-    if cols_to_normalize:
-        df_normalized[cols_to_normalize] = scaler.fit_transform(df[cols_to_normalize])
-        
-        # 스케일러 정보 저장
-        for i, col in enumerate(cols_to_normalize):
-            if hasattr(scaler, 'mean_'):
-                scaler_info[col] = {
-                    'mean': float(scaler.mean_[i]),
-                    'scale': float(scaler.scale_[i])
-                }
-            elif hasattr(scaler, 'data_min_'):
-                scaler_info[col] = {
-                    'min': float(scaler.data_min_[i]),
-                    'scale': float(scaler.scale_[i])
-                }
-    
-    result = {
-        'success': True,
-        'method': '${method}',
-        'normalized_columns': cols_to_normalize,
-        'scaler_info': scaler_info,
-        'shape': list(df_normalized.shape)
-    }
-    
-    # 정규화된 데이터 저장
-    temp_file = './temp/normalized_data.csv'
-    df_normalized.to_csv(temp_file, index=False)
-    result['temp_file'] = temp_file
-    
-    print(json.dumps(result, ensure_ascii=False, default=str))
-    
-except Exception as e:
-    error_result = {
-        'success': False,
-        'error': str(e),
-        'error_type': type(e).__name__
-    }
-    print(json.dumps(error_result, ensure_ascii=False))
-`;
-
-    const executionResult = await this.pythonExecutor.execute(pythonCode);
-    
-    if (executionResult.success) {
-      const result = JSON.parse(executionResult.output);
-      return result;
-    } else {
-      throw new Error(executionResult.error);
-    }
-  }
-
-  async encodeCategorical(data, options = {}) {
-    const { method = 'onehot', columns = null, dropFirst = true } = options;
-    
-    const pythonCode = `
-import pandas as pd
-import numpy as np
-import json
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder
-
-try:
-    # 데이터 로드
-    df = pd.read_csv('./temp/loaded_data.csv')
-    
-    # 인코딩할 컬럼 선택
-    if ${columns ? JSON.stringify(columns) : 'None'}:
-        cols_to_encode = ${JSON.stringify(columns)}
-    else:
-        # 범주형 컬럼만 선택
-        cols_to_encode = df.select_dtypes(include=['object', 'category']).columns.tolist()
-    
-    df_encoded = df.copy()
-    encoding_info = {}
-    
-    for col in cols_to_encode:
-        if col in df.columns:
-            if '${method}' == 'label':
-                # 라벨 인코딩
-                le = LabelEncoder()
-                df_encoded[col] = le.fit_transform(df[col].astype(str))
-                encoding_info[col] = {
-                    'method': 'label',
-                    'classes': le.classes_.tolist()
-                }
-            elif '${method}' == 'onehot':
-                # 원핫 인코딩
-                dummies = pd.get_dummies(df[col], prefix=col, drop_first=${dropFirst})
-                df_encoded = pd.concat([df_encoded.drop(col, axis=1), dummies], axis=1)
-                encoding_info[col] = {
-                    'method': 'onehot',
-                    'new_columns': dummies.columns.tolist(),
-                    'dropped_first': ${dropFirst}
-                }
-    
-    result = {
-        'success': True,
-        'method': '${method}',
-        'encoded_columns': cols_to_encode,
-        'encoding_info': encoding_info,
-        'original_shape': list(df.shape),
-        'encoded_shape': list(df_encoded.shape)
-    }
-    
-    # 인코딩된 데이터 저장
-    temp_file = './temp/encoded_data.csv'
-    df_encoded.to_csv(temp_file, index=False)
-    result['temp_file'] = temp_file
-    
-    print(json.dumps(result, ensure_ascii=False, default=str))
-    
-except Exception as e:
-    error_result = {
-        'success': False,
-        'error': str(e),
-        'error_type': type(e).__name__
-    }
-    print(json.dumps(error_result, ensure_ascii=False))
-`;
-
-    const executionResult = await this.pythonExecutor.execute(pythonCode);
-    
-    if (executionResult.success) {
-      const result = JSON.parse(executionResult.output);
-      return result;
-    } else {
-      throw new Error(executionResult.error);
-    }
-  }
-
-  async scaleFeatures(data, options = {}) {
-    // normalizeData와 동일한 기능이지만 다른 이름으로 호출
-    return await this.normalizeData(data, options);
-  }
-
-  async comprehensivePreprocessing(data, options = {}) {
-    const {
-      handleMissing = true,
-      missingStrategy = 'drop',
-      normalizeFeatures = true,
-      normalizationMethod = 'standard',
-      encodeCategorical = true,
-      encodingMethod = 'onehot',
-      removeOutliers = false,
-      outlierMethod = 'iqr'
-    } = options;
-
-    try {
-      let currentData = data;
-      const steps = [];
-
-      // 1. 결측값 처리
-      if (handleMissing) {
-        const missingResult = await this.handleMissingValues(currentData, {
-          strategy: missingStrategy
-        });
-        steps.push({
-          step: 'missing_values',
-          result: missingResult
-        });
-      }
-
-      // 2. 이상치 제거 (구현 필요시)
-      if (removeOutliers) {
-        // 이상치 제거 로직 추가 가능
-      }
-
-      // 3. 범주형 인코딩
-      if (encodeCategorical) {
-        const encodingResult = await this.encodeCategorical(currentData, {
-          method: encodingMethod
-        });
-        steps.push({
-          step: 'categorical_encoding',
-          result: encodingResult
-        });
-      }
-
-      // 4. 특성 정규화
-      if (normalizeFeatures) {
-        const normalizationResult = await this.normalizeData(currentData, {
-          method: normalizationMethod
-        });
-        steps.push({
-          step: 'feature_normalization',
-          result: normalizationResult
-        });
-      }
-
-      return {
-        success: true,
-        preprocessing_steps: steps,
-        summary: `총 ${steps.length}개의 전처리 단계가 완료되었습니다.`,
-        final_temp_file: steps[steps.length - 1]?.result?.temp_file
-      };
-
-    } catch (error) {
-      this.logger.error('종합 전처리 실패:', error);
-      throw error;
-    }
-  }
-
-  // 정리 작업
-  async cleanup() {
-    try {
-      // 캐시 정리
-      this.dataCache.clear();
-      this.currentCacheSize = 0;
-      
-      // Python 실행기 정리
-      if (this.pythonExecutor && typeof this.pythonExecutor.cleanup === 'function') {
-        await this.pythonExecutor.cleanup();
-      }
-      
-      this.logger.info('DataLoader 정리 완료');
-    } catch (error) {
-      this.logger.error('DataLoader 정리 실패:', error);
-    }
-  }
-
-  // 헬스 체크
-  async healthCheck() {
-    const health = {
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      cache_info: this.getCacheInfo(),
-      supported_formats: this.getSupportedFormats()
-    };
-
-    try {
-      // Python 실행기 상태 확인
-      if (this.pythonExecutor && typeof this.pythonExecutor.healthCheck === 'function') {
-        const pythonHealth = await this.pythonExecutor.healthCheck();
-        health.python_executor = pythonHealth;
-        
-        if (pythonHealth.status !== 'healthy') {
-          health.status = 'degraded';
+      // 숫자 타입 체크
+      if (!isNaN(strValue) && strValue !== '') {
+        numericCount++;
+        if (Number.isInteger(parseFloat(strValue))) {
+          integerCount++;
         }
       }
+      
+      // 날짜 타입 체크
+      if (this.isDateString(strValue)) {
+        dateCount++;
+      }
+      
+      // 불린 타입 체크
+      if (['true', 'false', '1', '0', 'yes', 'no', 'y', 'n'].includes(strValue.toLowerCase())) {
+        booleanCount++;
+      }
+    });
+    
+    const threshold = values.length * 0.8;
+    
+    if (booleanCount >= threshold) return 'boolean';
+    if (dateCount >= threshold) return 'datetime';
+    if (integerCount >= threshold) return 'integer';
+    if (numericCount >= threshold) return 'float';
+    
+    return 'string';
+  }
+
+  convertValue(value, targetType) {
+    if (value === null || value === '' || value === undefined) {
+      return null;
+    }
+    
+    const strValue = String(value).trim();
+    
+    try {
+      switch (targetType) {
+        case 'integer':
+          return parseInt(strValue, 10);
+        
+        case 'float':
+          return parseFloat(strValue);
+        
+        case 'boolean':
+          const lowerValue = strValue.toLowerCase();
+          if (['true', '1', 'yes', 'y'].includes(lowerValue)) return true;
+          if (['false', '0', 'no', 'n'].includes(lowerValue)) return false;
+          return Boolean(strValue);
+        
+        case 'datetime':
+          return new Date(strValue).toISOString();
+        
+        default:
+          return strValue;
+      }
     } catch (error) {
-      health.status = 'error';
-      health.error = error.message;
+      return strValue; // 변환 실패 시 원본 문자열 반환
+    }
+  }
+
+  isDateString(value) {
+    if (!value || typeof value !== 'string') return false;
+    
+    const datePatterns = [
+      /^\d{4}-\d{2}-\d{2}$/,           // YYYY-MM-DD
+      /^\d{2}\/\d{2}\/\d{4}$/,         // MM/DD/YYYY
+      /^\d{2}-\d{2}-\d{4}$/,           // MM-DD-YYYY
+      /^\d{4}\/\d{2}\/\d{2}$/,         // YYYY/MM/DD
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/ // ISO format
+    ];
+    
+    return datePatterns.some(pattern => pattern.test(value)) && !isNaN(Date.parse(value));
+  }
+
+  flattenObject(obj, maxDepth = 10, currentDepth = 0, prefix = '') {
+    if (currentDepth >= maxDepth) return obj;
+    
+    const flattened = {};
+    
+    for (const [key, value] of Object.entries(obj)) {
+      const newKey = prefix ? `${prefix}.${key}` : key;
+      
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        Object.assign(flattened, this.flattenObject(value, maxDepth, currentDepth + 1, newKey));
+      } else {
+        flattened[newKey] = value;
+      }
+    }
+    
+    return flattened;
+  }
+
+  calculateBasicStatistics(data, headers) {
+    if (!data || data.length === 0) {
+      return { basic_stats: {}, missing_values: {}, summary: {} };
     }
 
-    return health;
+    const statistics = {
+      basic_stats: {},
+      missing_values: {},
+      summary: {
+        row_count: data.length,
+        column_count: headers ? headers.length : 0,
+        total_cells: data.length * (headers ? headers.length : 0),
+        non_null_cells: 0,
+        data_types: {}
+      }
+    };
+
+    if (!headers || headers.length === 0) return statistics;
+
+    headers.forEach(column => {
+      const values = data.map(row => row[column]).filter(val => val !== null && val !== '' && val !== undefined);
+      const nonNullCount = values.length;
+      const nullCount = data.length - nonNullCount;
+
+      // 누락값 통계
+      statistics.missing_values[column] = {
+        count: nullCount,
+        percentage: (nullCount / data.length) * 100
+      };
+
+      // 데이터 타입 추론
+      const inferredType = this.inferColumnType(data, column);
+      statistics.summary.data_types[column] = inferredType;
+
+      // 기본 통계 (숫자형 컬럼만)
+      if (['integer', 'float'].includes(inferredType) && values.length > 0) {
+        const numericValues = values.map(v => parseFloat(v)).filter(v => !isNaN(v));
+        
+        if (numericValues.length > 0) {
+          numericValues.sort((a, b) => a - b);
+          
+          const sum = numericValues.reduce((a, b) => a + b, 0);
+          const mean = sum / numericValues.length;
+          const variance = numericValues.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / numericValues.length;
+          
+          statistics.basic_stats[column] = {
+            count: numericValues.length,
+            mean: mean,
+            std: Math.sqrt(variance),
+            min: numericValues[0],
+            max: numericValues[numericValues.length - 1],
+            q25: this.percentile(numericValues, 0.25),
+            q50: this.percentile(numericValues, 0.5),
+            q75: this.percentile(numericValues, 0.75),
+            sum: sum
+          };
+        }
+      }
+
+      // 문자열 통계
+      if (inferredType === 'string' && values.length > 0) {
+        const lengths = values.map(v => String(v).length);
+        const uniqueValues = new Set(values);
+        
+        statistics.basic_stats[column] = {
+          count: values.length,
+          unique_count: uniqueValues.size,
+          max_length: Math.max(...lengths),
+          min_length: Math.min(...lengths),
+          avg_length: lengths.reduce((a, b) => a + b, 0) / lengths.length
+        };
+      }
+
+      statistics.summary.non_null_cells += nonNullCount;
+    });
+
+    return statistics;
+  }
+
+  percentile(sortedArray, p) {
+    if (sortedArray.length === 0) return 0;
+    
+    const index = (sortedArray.length - 1) * p;
+    const lower = Math.floor(index);
+    const upper = Math.ceil(index);
+    
+    if (lower === upper) {
+      return sortedArray[lower];
+    }
+    
+    return sortedArray[lower] * (upper - index) + sortedArray[upper] * (index - lower);
+  }
+
+  async postProcessResult(result, options) {
+    // 데이터 후처리 옵션 적용
+    let processedResult = { ...result };
+
+    // 샘플링
+    if (options.sampleSize && result.data.length > options.sampleSize) {
+      const sampledData = this.sampleData(result.data, options.sampleSize, options.sampleMethod || 'random');
+      processedResult.data = sampledData;
+      processedResult.rowCount = sampledData.length;
+      processedResult.metadata = {
+        ...processedResult.metadata,
+        sampled: true,
+        originalRowCount: result.data.length,
+        sampleSize: options.sampleSize,
+        sampleMethod: options.sampleMethod || 'random'
+      };
+    }
+
+    // 데이터 품질 정보 추가
+    if (options.includeQuality !== false) {
+      processedResult.quality = this.assessDataQuality(processedResult);
+    }
+
+    // 프로파일링 정보 추가
+    if (options.includeProfile) {
+      processedResult.profile = await this.generateDataProfile(processedResult);
+    }
+
+    return processedResult;
+  }
+
+  sampleData(data, sampleSize, method = 'random') {
+    if (data.length <= sampleSize) return data;
+
+    switch (method) {
+      case 'random':
+        const shuffled = [...data].sort(() => 0.5 - Math.random());
+        return shuffled.slice(0, sampleSize);
+      
+      case 'systematic':
+        const step = Math.floor(data.length / sampleSize);
+        return data.filter((_, index) => index % step === 0).slice(0, sampleSize);
+      
+      case 'stratified':
+        // 간단한 계층 샘플링 (첫 번째 컬럼 기준)
+        if (data.length === 0) return [];
+        const firstColumn = Object.keys(data[0])[0];
+        const groups = this.groupBy(data, firstColumn);
+        const sampledGroups = Object.values(groups).map(group => 
+          group.slice(0, Math.max(1, Math.floor(sampleSize / Object.keys(groups).length)))
+        );
+        return sampledGroups.flat().slice(0, sampleSize);
+      
+      default:
+        return data.slice(0, sampleSize);
+    }
+  }
+
+  groupBy(data, key) {
+    return data.reduce((groups, item) => {
+      const group = item[key] || 'undefined';
+      groups[group] = groups[group] || [];
+      groups[group].push(item);
+      return groups;
+    }, {});
+  }
+
+  assessDataQuality(result) {
+    const quality = {
+      overall_score: 100,
+      issues: [],
+      recommendations: [],
+      metrics: {}
+    };
+
+    if (!result.data || result.data.length === 0) {
+      quality.overall_score = 0;
+      quality.issues.push('데이터가 없습니다.');
+      return quality;
+    }
+
+    // 누락값 품질 평가
+    if (result.statistics && result.statistics.missing_values) {
+      const missingStats = Object.values(result.statistics.missing_values);
+      const avgMissingPercent = missingStats.reduce((sum, stat) => sum + stat.percentage, 0) / missingStats.length;
+      
+      quality.metrics.missing_data_percentage = avgMissingPercent;
+      
+      if (avgMissingPercent > 50) {
+        quality.overall_score -= 30;
+        quality.issues.push('높은 누락값 비율 (50% 이상)');
+        quality.recommendations.push('데이터 수집 방법을 검토하거나 누락값 처리 전략을 수립하세요.');
+      } else if (avgMissingPercent > 20) {
+        quality.overall_score -= 15;
+        quality.issues.push('상당한 누락값 (20% 이상)');
+        quality.recommendations.push('누락값 처리를 고려하세요.');
+      }
+    }
+
+    // 데이터 일관성 평가
+    const consistency = this.checkDataConsistency(result.data);
+    quality.metrics.consistency_score = consistency.score;
+    
+    if (consistency.score < 0.8) {
+      quality.overall_score -= 20;
+      quality.issues.push('데이터 일관성 문제');
+      quality.recommendations.push('데이터 형식을 표준화하세요.');
+    }
+
+    // 중복 데이터 평가
+    const duplicates = this.findDuplicateRows(result.data);
+    const duplicatePercent = (duplicates.length / result.data.length) * 100;
+    quality.metrics.duplicate_percentage = duplicatePercent;
+    
+    if (duplicatePercent > 10) {
+      quality.overall_score -= 15;
+      quality.issues.push(`중복 행 발견 (${duplicatePercent.toFixed(1)}%)`);
+      quality.recommendations.push('중복 제거를 고려하세요.');
+    }
+
+    quality.overall_score = Math.max(0, quality.overall_score);
+    return quality;
+  }
+
+  checkDataConsistency(data) {
+    if (data.length === 0) return { score: 1, issues: [] };
+
+    const headers = Object.keys(data[0]);
+    const issues = [];
+    let totalScore = 0;
+
+    headers.forEach(header => {
+      const values = data.map(row => row[header]);
+      const nonNullValues = values.filter(v => v !== null && v !== undefined && v !== '');
+      
+      if (nonNullValues.length === 0) return;
+
+      // 데이터 타입 일관성 확인
+      const typeConsistency = this.checkTypeConsistency(nonNullValues);
+      totalScore += typeConsistency.score;
+      
+      if (typeConsistency.score < 0.8) {
+        issues.push(`컬럼 '${header}': 타입 불일치`);
+      }
+    });
+
+    return {
+      score: totalScore / headers.length,
+      issues
+    };
+  }
+
+  checkTypeConsistency(values) {
+    const types = values.map(value => typeof value);
+    const typeCount = types.reduce((acc, type) => {
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+
+    const dominantType = Object.keys(typeCount).reduce((a, b) => 
+      typeCount[a] > typeCount[b] ? a : b
+    );
+
+    const consistency = typeCount[dominantType] / values.length;
+    
+    return {
+      score: consistency,
+      dominantType,
+      typeDistribution: typeCount
+    };
+  }
+
+  findDuplicateRows(data) {
+    const seen = new Set();
+    const duplicates = [];
+
+    data.forEach((row, index) => {
+      const rowKey = JSON.stringify(row);
+      if (seen.has(rowKey)) {
+        duplicates.push({ index, row });
+      } else {
+        seen.add(rowKey);
+      }
+    });
+
+    return duplicates;
+  }
+
+  async generateDataProfile(result) {
+    const profile = {
+      overview: {
+        shape: [result.rowCount, result.columnCount],
+        memory_usage: this.estimateMemoryUsage(result.data),
+        data_types: result.statistics?.summary?.data_types || {}
+      },
+      columns: {},
+      correlations: {},
+      patterns: {}
+    };
+
+    // 컬럼별 상세 프로파일
+    if (result.headers) {
+      for (const column of result.headers) {
+        profile.columns[column] = await this.generateColumnProfile(result.data, column);
+      }
+    }
+
+    // 상관관계 분석 (숫자형 컬럼만)
+    const numericColumns = Object.entries(profile.overview.data_types)
+      .filter(([_, type]) => ['integer', 'float'].includes(type))
+      .map(([col, _]) => col);
+
+    if (numericColumns.length > 1) {
+      profile.correlations = this.calculateCorrelations(result.data, numericColumns);
+    }
+
+    return profile;
+  }
+
+  async generateColumnProfile(data, columnName) {
+    const values = data.map(row => row[columnName]);
+    const nonNullValues = values.filter(v => v !== null && v !== undefined && v !== '');
+    
+    const profile = {
+      count: values.length,
+      non_null_count: nonNullValues.length,
+      null_count: values.length - nonNullValues.length,
+      null_percentage: ((values.length - nonNullValues.length) / values.length) * 100,
+      unique_count: new Set(nonNullValues).size,
+      data_type: this.inferColumnType(data, columnName)
+    };
+
+    // 타입별 상세 정보
+    if (['integer', 'float'].includes(profile.data_type)) {
+      const numericValues = nonNullValues.map(v => parseFloat(v)).filter(v => !isNaN(v));
+      if (numericValues.length > 0) {
+        profile.numeric_profile = this.generateNumericProfile(numericValues);
+      }
+    } else if (profile.data_type === 'string') {
+      profile.text_profile = this.generateTextProfile(nonNullValues);
+    }
+
+    // 빈도 분석
+    profile.value_counts = this.getValueCounts(nonNullValues, 10);
+
+    return profile;
+  }
+
+  generateNumericProfile(values) {
+    const sorted = [...values].sort((a, b) => a - b);
+    const sum = values.reduce((a, b) => a + b, 0);
+    const mean = sum / values.length;
+    const variance = values.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / values.length;
+
+    return {
+      min: sorted[0],
+      max: sorted[sorted.length - 1],
+      mean: mean,
+      median: this.percentile(sorted, 0.5),
+      std: Math.sqrt(variance),
+      variance: variance,
+      sum: sum,
+      quantiles: {
+        q25: this.percentile(sorted, 0.25),
+        q50: this.percentile(sorted, 0.5),
+        q75: this.percentile(sorted, 0.75)
+      },
+      outliers: this.detectOutliers(sorted)
+    };
+  }
+
+  generateTextProfile(values) {
+    const lengths = values.map(v => String(v).length);
+    const words = values.flatMap(v => String(v).split(/\s+/));
+    
+    return {
+      min_length: Math.min(...lengths),
+      max_length: Math.max(...lengths),
+      avg_length: lengths.reduce((a, b) => a + b, 0) / lengths.length,
+      total_characters: lengths.reduce((a, b) => a + b, 0),
+      word_count: words.length,
+      avg_words: words.length / values.length,
+      common_patterns: this.findCommonPatterns(values)
+    };
+  }
+
+  detectOutliers(sortedValues) {
+    if (sortedValues.length < 4) return [];
+
+    const q1 = this.percentile(sortedValues, 0.25);
+    const q3 = this.percentile(sortedValues, 0.75);
+    const iqr = q3 - q1;
+    const lowerBound = q1 - 1.5 * iqr;
+    const upperBound = q3 + 1.5 * iqr;
+
+    return sortedValues.filter(val => val < lowerBound || val > upperBound);
+  }
+
+  findCommonPatterns(values) {
+    const patterns = {};
+    
+    values.forEach(value => {
+      const str = String(value);
+      
+      // 길이 패턴
+      const lengthPattern = `length_${str.length}`;
+      patterns[lengthPattern] = (patterns[lengthPattern] || 0) + 1;
+      
+      // 첫 글자 패턴
+      if (str.length > 0) {
+        const firstChar = str[0].toLowerCase();
+        const firstPattern = `starts_with_${firstChar}`;
+        patterns[firstPattern] = (patterns[firstPattern] || 0) + 1;
+      }
+    });
+
+    return Object.entries(patterns)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 5)
+      .map(([pattern, count]) => ({ pattern, count, percentage: (count / values.length) * 100 }));
+  }
+
+  getValueCounts(values, limit = 10) {
+    const counts = values.reduce((acc, val) => {
+      acc[val] = (acc[val] || 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(counts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, limit)
+      .map(([value, count]) => ({ 
+        value, 
+        count, 
+        percentage: (count / values.length) * 100 
+      }));
+  }
+
+  calculateCorrelations(data, numericColumns) {
+    const correlations = {};
+    
+    for (let i = 0; i < numericColumns.length; i++) {
+      for (let j = i + 1; j < numericColumns.length; j++) {
+        const col1 = numericColumns[i];
+        const col2 = numericColumns[j];
+        
+        const pairs = data
+          .map(row => [parseFloat(row[col1]), parseFloat(row[col2])])
+          .filter(([a, b]) => !isNaN(a) && !isNaN(b));
+        
+        if (pairs.length > 1) {
+          const correlation = this.pearsonCorrelation(pairs);
+          correlations[`${col1}_${col2}`] = {
+            columns: [col1, col2],
+            correlation: correlation,
+            sample_size: pairs.length
+          };
+        }
+      }
+    }
+    
+    return correlations;
+  }
+
+  pearsonCorrelation(pairs) {
+    const n = pairs.length;
+    if (n === 0) return 0;
+
+    const sumX = pairs.reduce((sum, [x, _]) => sum + x, 0);
+    const sumY = pairs.reduce((sum, [_, y]) => sum + y, 0);
+    const sumXY = pairs.reduce((sum, [x, y]) => sum + x * y, 0);
+    const sumX2 = pairs.reduce((sum, [x, _]) => sum + x * x, 0);
+    const sumY2 = pairs.reduce((sum, [_, y]) => sum + y * y, 0);
+
+    const numerator = n * sumXY - sumX * sumY;
+    const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+
+    return denominator === 0 ? 0 : numerator / denominator;
+  }
+
+  estimateMemoryUsage(data) {
+    const jsonString = JSON.stringify(data);
+    const bytes = new Blob([jsonString]).size;
+    
+    return {
+      bytes: bytes,
+      mb: bytes / (1024 * 1024),
+      formatted: this.formatFileSize(bytes)
+    };
+  }
+
+  formatFileSize(bytes) {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = bytes;
+    let unitIndex = 0;
+    
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+    
+    return `${size.toFixed(1)} ${units[unitIndex]}`;
+  }
+
+  recordLoadHistory(filePath, format, executionTime, success, error = null) {
+    const record = {
+      filePath,
+      format,
+      executionTime,
+      success,
+      error: error?.message,
+      timestamp: new Date().toISOString()
+    };
+
+    this.loadHistory.push(record);
+
+    // 히스토리 크기 제한
+    if (this.loadHistory.length > 100) {
+      this.loadHistory = this.loadHistory.slice(-50);
+    }
+  }
+
+  // 배치 로딩
+  async loadMultipleFiles(filePaths, options = {}) {
+    const results = [];
+    const errors = [];
+
+    for (const filePath of filePaths) {
+      try {
+        const result = await this.loadData(filePath, options);
+        results.push(result);
+      } catch (error) {
+        errors.push({ filePath, error: error.message });
+      }
+    }
+
+    return {
+      results,
+      errors,
+      summary: {
+        total: filePaths.length,
+        successful: results.length,
+        failed: errors.length,
+        success_rate: (results.length / filePaths.length) * 100
+      }
+    };
+  }
+
+  // 형식 지원 확인
+  async checkFormatSupport(filePath) {
+    const extension = path.extname(filePath).toLowerCase();
+    const format = this.detectFileFormat(extension);
+    
+    const support = {
+      supported: this.supportedFormats.includes(format),
+      format: format,
+      requires_python: ['excel', 'parquet', 'hdf5'].includes(format),
+      python_available: !!this.pythonExecutor
+    };
+
+    if (support.requires_python && !support.python_available) {
+      support.warning = `${format} 파일을 로드하려면 PythonExecutor가 필요합니다.`;
+    }
+
+    return support;
+  }
+
+  // 통계 정보
+  getLoadStatistics() {
+    const recentLoads = this.loadHistory.slice(-20);
+    
+    return {
+      total_loads: this.loadHistory.length,
+      recent_loads: recentLoads,
+      success_rate: this.loadHistory.length > 0 ? 
+        (this.loadHistory.filter(h => h.success).length / this.loadHistory.length) * 100 : 0,
+      average_load_time: recentLoads.length > 0 ?
+        recentLoads.reduce((sum, h) => sum + h.executionTime, 0) / recentLoads.length : 0,
+      format_statistics: this.getFormatStatistics()
+    };
+  }
+
+  getFormatStatistics() {
+    const formatCounts = this.loadHistory.reduce((acc, record) => {
+      acc[record.format] = (acc[record.format] || 0) + 1;
+      return acc;
+    }, {});
+
+    return Object.entries(formatCounts)
+      .map(([format, count]) => ({ format, count }))
+      .sort((a, b) => b.count - a.count);
   }
 }

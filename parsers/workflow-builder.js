@@ -683,6 +683,8 @@ export class WorkflowBuilder {
     return parallelGroups;
   }
 
+  // parsers/workflow-builder.js - canRunInParallel 함수 완성
+
   canRunInParallel(step1, step2, previousSteps) {
     const step1Key = `${step1.type}.${step1.method}`;
     const step2Key = `${step2.type}.${step2.method}`;
@@ -714,6 +716,167 @@ export class WorkflowBuilder {
     }
 
     return true;
+  }
+
+  // 추가 헬퍼 메서드들
+  initializeStepDependencies() {
+    return {
+      'basic.descriptive_stats': {
+        requires: ['dataset'],
+        provides: ['statistics', 'summary']
+      },
+      'basic.correlation': {
+        requires: ['dataset'],
+        provides: ['correlation_matrix']
+      },
+      'basic.missing_values_analysis': {
+        requires: ['dataset'],
+        provides: ['missing_report']
+      },
+      'visualization.scatter': {
+        requires: ['dataset'],
+        provides: ['scatter_plot']
+      },
+      'visualization.heatmap': {
+        requires: ['correlation_matrix'],
+        provides: ['correlation_heatmap']
+      },
+      'advanced.outlier_detection': {
+        requires: ['dataset'],
+        provides: ['outlier_report', 'clean_dataset']
+      },
+      'advanced.feature_engineering': {
+        requires: ['dataset'],
+        provides: ['engineered_features']
+      },
+      'ml_traditional.classification': {
+        requires: ['dataset', 'engineered_features'],
+        provides: ['trained_model', 'predictions']
+      },
+      'ml_traditional.regression': {
+        requires: ['dataset', 'engineered_features'],
+        provides: ['trained_model', 'predictions']
+      }
+    };
+  }
+
+  initializeStepCompatibility() {
+    return {
+      'basic': {
+        compatible_with: ['basic', 'visualization', 'advanced'],
+        incompatible_with: []
+      },
+      'advanced': {
+        compatible_with: ['basic', 'visualization', 'ml_traditional'],
+        incompatible_with: []
+      },
+      'ml_traditional': {
+        compatible_with: ['visualization', 'postprocessing'],
+        incompatible_with: ['ml_traditional'] // 동시에 여러 ML 모델 훈련 방지
+      },
+      'deep_learning': {
+        compatible_with: ['visualization', 'postprocessing'],
+        incompatible_with: ['deep_learning', 'ml_traditional'] // GPU 리소스 경합 방지
+      },
+      'visualization': {
+        compatible_with: ['basic', 'advanced', 'visualization'],
+        incompatible_with: []
+      },
+      'preprocessing': {
+        compatible_with: ['preprocessing'],
+        incompatible_with: []
+      },
+      'postprocessing': {
+        compatible_with: ['postprocessing', 'visualization'],
+        incompatible_with: []
+      }
+    };
+  }
+
+  // 병렬 처리로 인한 시간 절약 계산
+  calculateParallelTimeSaving(workflow, parallelGroups) {
+    let totalSavings = 0;
+    
+    parallelGroups.forEach(group => {
+      if (group.length > 1) {
+        const groupSteps = group.map(index => workflow.steps[index]);
+        const stepTimes = groupSteps.map(step => this.estimateStepTime(step));
+        const sequentialTime = stepTimes.reduce((sum, time) => sum + time, 0);
+        const parallelTime = Math.max(...stepTimes);
+        totalSavings += sequentialTime - parallelTime;
+      }
+    });
+    
+    return totalSavings;
+  }
+
+  // 중복 단계 찾기
+  findDuplicateSteps(steps) {
+    const duplicates = [];
+    const stepMap = new Map();
+    
+    steps.forEach((step, index) => {
+      const key = `${step.type}.${step.method}:${JSON.stringify(step.params || {})}`;
+      
+      if (stepMap.has(key)) {
+        duplicates.push({
+          original_index: stepMap.get(key),
+          duplicate_index: index,
+          step_key: key
+        });
+      } else {
+        stepMap.set(key, index);
+      }
+    });
+    
+    return duplicates;
+  }
+
+  // 단계 순서 분석
+  analyzeStepOrder(steps) {
+    const analysis = {
+      canOptimize: false,
+      suggestions: [],
+      current_order: steps.map((step, index) => ({ index, type: step.type, method: step.method }))
+    };
+    
+    // 데이터 로딩이 첫 번째가 아닌 경우
+    const dataLoadingIndex = steps.findIndex(step => 
+      step.type === 'data_loading' || step.method === 'load_data'
+    );
+    
+    if (dataLoadingIndex > 0) {
+      analysis.canOptimize = true;
+      analysis.suggestions.push({
+        type: 'move_data_loading_first',
+        message: '데이터 로딩을 첫 번째 단계로 이동하는 것이 좋습니다.',
+        current_position: dataLoadingIndex,
+        suggested_position: 0
+      });
+    }
+    
+    // 전처리가 분석 후에 오는 경우
+    const preprocessingSteps = steps.map((step, index) => ({ step, index }))
+      .filter(item => item.step.type === 'preprocessing');
+    const analysisSteps = steps.map((step, index) => ({ step, index }))
+      .filter(item => item.step.type === 'basic' || item.step.type === 'advanced');
+    
+    if (preprocessingSteps.length > 0 && analysisSteps.length > 0) {
+      const lastPreprocessing = Math.max(...preprocessingSteps.map(item => item.index));
+      const firstAnalysis = Math.min(...analysisSteps.map(item => item.index));
+      
+      if (lastPreprocessing > firstAnalysis) {
+        analysis.canOptimize = true;
+        analysis.suggestions.push({
+          type: 'move_preprocessing_before_analysis',
+          message: '전처리 단계를 분석 단계 전으로 이동하는 것이 좋습니다.',
+          preprocessing_positions: preprocessingSteps.map(item => item.index),
+          analysis_positions: analysisSteps.map(item => item.index)
+        });
+      }
+    }
+    
+    return analysis;
   }
 
   generateExecutionPlan(workflow) {

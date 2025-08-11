@@ -1,4 +1,4 @@
-// core/router.js
+// core/router.js - 완전한 지능형 라우터 시스템
 import { Logger } from '../utils/logger.js';
 import { ConfigLoader } from '../utils/config-loader.js';
 
@@ -8,527 +8,675 @@ export class Router {
     this.logger = new Logger();
     this.configLoader = new ConfigLoader();
     this.routingRules = null;
-    this.analysisMethodsConfig = null;
-    this.pipelineTemplatesConfig = null;
-    this.toolMappings = new Map();
-    this.complexityThresholds = {
-      simple: 0.3,
-      medium: 0.6,
-      complex: 0.8
+    this.routingHistory = [];
+    this.performanceMetrics = new Map();
+    this.adaptiveLearning = {
+      enabled: true,
+      learningRate: 0.1,
+      confidenceThreshold: 0.7
     };
   }
 
   async initialize() {
     try {
-      await this.loadConfigurations();
-      this.setupToolMappings();
+      // 설정 로더 초기화
+      await this.configLoader.initialize();
+      
+      // 라우팅 규칙 로드
+      await this.loadRoutingRules();
+      
+      // 성능 지표 초기화
+      this.initializePerformanceMetrics();
+      
       this.logger.info('Router 초기화 완료');
     } catch (error) {
       this.logger.error('Router 초기화 실패:', error);
-      this.useDefaultConfigurations();
+      throw error;
     }
   }
 
-  async loadConfigurations() {
+  async loadRoutingRules() {
     try {
-      // 라우팅 규칙 로드
-      this.routingRules = await this.configLoader.loadConfig('routing-rules.json');
+      this.routingRules = this.configLoader.getConfig('routing-rules');
       
-      // 분석 방법 설정 로드
-      this.analysisMethodsConfig = await this.configLoader.loadConfig('analysis-methods.json');
+      if (!this.routingRules) {
+        this.logger.warn('라우팅 규칙을 찾을 수 없음, 기본값 사용');
+        this.routingRules = this.getDefaultRules();
+      }
       
-      // 파이프라인 템플릿 로드
-      this.pipelineTemplatesConfig = await this.configLoader.loadConfig('pipeline-templates.json');
-      
-      this.logger.info('라우팅 설정 로드 완료');
+      this.logger.info('라우팅 규칙 로드 완료');
     } catch (error) {
-      this.logger.warn('설정 파일 로드 실패, 기본값 사용:', error);
-      this.useDefaultConfigurations();
+      this.logger.error('라우팅 규칙 로드 실패:', error);
+      this.routingRules = this.getDefaultRules();
     }
   }
 
-  useDefaultConfigurations() {
-    this.routingRules = {
-      simple_queries: {
-        keywords: ['안녕', '도움말', '상태', '모드', '종료', '버전'],
-        maxComplexity: 0.3,
-        model: 'router',
-        tools: ['system']
+  getDefaultRules() {
+    return {
+      intent_patterns: {
+        data_analysis: [
+          'analyze', 'analysis', 'explore', 'examine', 'investigate',
+          'statistics', 'stats', 'summary', 'describe', '분석', '탐색', '조사'
+        ],
+        visualization: [
+          'plot', 'chart', 'graph', 'visualize', 'draw', 'show',
+          'histogram', 'scatter', 'heatmap', '시각화', '차트', '그래프'
+        ],
+        machine_learning: [
+          'train', 'model', 'predict', 'classification', 'regression',
+          'clustering', 'ml', 'machine learning', '훈련', '모델', '예측'
+        ],
+        data_processing: [
+          'clean', 'preprocess', 'transform', 'encode', 'scale',
+          'normalize', 'feature engineering', '전처리', '정규화', '변환'
+        ]
       },
-      data_operations: {
-        keywords: ['로드', '불러오기', '데이터', '파일', '읽기', 'load', 'read'],
-        complexity: [0.2, 0.6],
-        model: 'router',
-        tools: ['data-loader', 'data-validator']
+      complexity_thresholds: {
+        simple: { 
+          maxTokens: 500, 
+          useRouter: true,
+          keywords: ['hello', 'help', 'status', '안녕', '도움말', '상태']
+        },
+        medium: { 
+          maxTokens: 1000, 
+          useRouter: false,
+          keywords: ['basic analysis', 'simple chart', '기본 분석', '간단한']
+        },
+        complex: { 
+          maxTokens: 2000, 
+          useRouter: false,
+          keywords: ['deep learning', 'pipeline', '딥러닝', '파이프라인']
+        }
       },
-      basic_analysis: {
-        keywords: ['분석', '통계', '요약', '기술통계', '상관관계', 'analysis', 'stats'],
-        complexity: [0.3, 0.7],
-        model: 'router',
-        tools: ['basic-analyzer', 'data-loader']
-      },
-      advanced_analysis: {
-        keywords: ['고급분석', '클러스터링', 'pca', '주성분', '이상치'],
-        complexity: [0.6, 0.9],
-        model: 'processor',
-        tools: ['advanced-analyzer', 'basic-analyzer']
-      },
-      ml_operations: {
-        keywords: ['모델', '훈련', '예측', '머신러닝', '딥러닝', 'training', 'prediction'],
-        minComplexity: 0.7,
-        model: 'processor',
-        tools: ['trainer', 'predictor', 'evaluator']
-      },
-      visualization: {
-        keywords: ['시각화', '차트', '그래프', '플롯', 'plot', 'chart', 'visualization'],
-        complexity: [0.4, 0.8],
-        model: 'router',
-        tools: ['chart-generator', 'plot-manager']
+      mode_switching: {
+        auto_switch: true,
+        confidence_threshold: 0.7,
+        switch_delay_ms: 1000
       }
     };
-
-    this.analysisMethodsConfig = {
-      basic: ['descriptive_stats', 'correlation', 'distribution'],
-      advanced: ['pca', 'clustering', 'outlier_detection'],
-      ml: ['classification', 'regression', 'ensemble']
-    };
-
-    this.pipelineTemplatesConfig = {
-      data_exploration: {
-        steps: ['load_data', 'validate_data', 'basic_analysis', 'visualization']
-      },
-      ml_workflow: {
-        steps: ['load_data', 'preprocess', 'train_model', 'evaluate', 'predict']
-      }
-    };
-  }
-
-  setupToolMappings() {
-    // 도구별 매핑 설정
-    this.toolMappings.set('data-loader', {
-      path: 'tools/data/data-loader.js',
-      methods: ['loadCSV', 'loadExcel', 'loadJSON', 'loadParquet', 'loadHDF5'],
-      complexity: 0.2
-    });
-
-    this.toolMappings.set('data-validator', {
-      path: 'tools/data/data-validator.js',
-      methods: ['validateData', 'checkDataTypes', 'findMissingValues'],
-      complexity: 0.3
-    });
-
-    this.toolMappings.set('basic-analyzer', {
-      path: 'tools/analysis/basic-analyzer.js',
-      methods: ['descriptiveStats', 'correlation', 'distribution'],
-      complexity: 0.4
-    });
-
-    this.toolMappings.set('advanced-analyzer', {
-      path: 'tools/analysis/advanced-analyzer.js',
-      methods: ['pca', 'clustering', 'outlierDetection'],
-      complexity: 0.7
-    });
-
-    this.toolMappings.set('time-series-analyzer', {
-      path: 'tools/analysis/time-series-analyzer.js',
-      methods: ['trendAnalysis', 'seasonalityAnalysis', 'forecasting'],
-      complexity: 0.6
-    });
-
-    this.toolMappings.set('trainer', {
-      path: 'tools/ml/trainer.js',
-      methods: ['trainClassification', 'trainRegression', 'trainClustering'],
-      complexity: 0.8
-    });
-
-    this.toolMappings.set('predictor', {
-      path: 'tools/ml/predictor.js',
-      methods: ['predict', 'batchPredict', 'realTimePredict'],
-      complexity: 0.7
-    });
-
-    this.toolMappings.set('evaluator', {
-      path: 'tools/ml/evaluator.js',
-      methods: ['evaluateModel', 'crossValidation', 'hyperparameterTuning'],
-      complexity: 0.8
-    });
-
-    this.toolMappings.set('chart-generator', {
-      path: 'tools/visualization/chart-generator.js',
-      methods: ['generateChart', 'createPlot', 'interactivePlot'],
-      complexity: 0.5
-    });
-
-    this.toolMappings.set('plot-manager', {
-      path: 'tools/visualization/plot-manager.js',
-      methods: ['managePlots', 'savePlot', 'exportPlot'],
-      complexity: 0.4
-    });
   }
 
   async route(toolName, args) {
+    const startTime = Date.now();
+    
     try {
-      // 1. 시스템 도구 확인
+      this.logger.info(`라우팅 요청: ${toolName}`, { args });
+
+      // 1. 시스템 도구 우선 처리
       if (this.isSystemTool(toolName)) {
-        return {
+        const decision = {
           taskType: 'system',
           model: 'router',
           tools: [toolName],
-          complexity: 0.1,
-          priority: 'high'
+          reasoning: 'System tool detected'
         };
+        
+        this.recordRoutingDecision(toolName, decision, Date.now() - startTime);
+        return decision;
       }
 
-      // 2. 쿼리 복잡도 분석
-      const complexity = await this.analyzeComplexity(toolName, args);
+      // 2. 쿼리 분석 및 복잡도 계산
+      const queryAnalysis = await this.analyzeQuery(toolName, args);
       
       // 3. 의도 파악
-      const intent = await this.analyzeIntent(toolName, args);
+      const intentAnalysis = await this.analyzeIntent(queryAnalysis);
       
-      // 4. 적절한 모델 결정
-      const selectedModel = this.selectModel(intent, complexity);
+      // 4. 라우팅 결정
+      const routingDecision = await this.makeRoutingDecision(queryAnalysis, intentAnalysis);
       
-      // 5. 필요한 도구들 결정
-      const requiredTools = this.selectTools(intent, toolName, args);
+      // 5. 적응형 학습 적용
+      if (this.adaptiveLearning.enabled) {
+        this.applyAdaptiveLearning(routingDecision, queryAnalysis);
+      }
       
-      // 6. 실행 계획 생성
-      const executionPlan = this.createExecutionPlan(intent, requiredTools, complexity);
-
-      return {
-        taskType: intent.category,
-        model: selectedModel,
-        tools: requiredTools,
-        complexity: complexity,
-        priority: this.determinePriority(complexity, intent),
-        executionPlan: executionPlan,
-        estimatedTime: this.estimateExecutionTime(requiredTools, complexity),
-        resourceRequirements: this.calculateResourceRequirements(requiredTools, complexity)
-      };
-
+      // 6. 성능 기록
+      const executionTime = Date.now() - startTime;
+      this.recordRoutingDecision(toolName, routingDecision, executionTime);
+      
+      this.logger.info('라우팅 결정 완료:', routingDecision);
+      return routingDecision;
+      
     } catch (error) {
       this.logger.error('라우팅 실패:', error);
-      return this.createFallbackRoute(toolName, args);
+      
+      // 안전한 폴백 전략
+      const fallbackDecision = this.createFallbackDecision(toolName, error);
+      this.recordRoutingDecision(toolName, fallbackDecision, Date.now() - startTime, error);
+      
+      return fallbackDecision;
     }
   }
 
-  async analyzeComplexity(toolName, args) {
-    let complexity = 0.3; // 기본값
+  async analyzeQuery(toolName, args) {
+    const analysis = {
+      toolName,
+      args,
+      queryText: this.extractQueryText(args),
+      hasDataFiles: false,
+      estimatedDataSize: 'unknown',
+      requiredOperations: [],
+      estimatedComplexity: 0,
+      resourceRequirements: this.estimateResourceRequirements(args)
+    };
 
+    // 쿼리 텍스트 분석
+    if (analysis.queryText) {
+      analysis.wordCount = analysis.queryText.split(' ').length;
+      analysis.hasDataFiles = this.detectDataFiles(analysis.queryText);
+      analysis.requiredOperations = this.extractOperations(analysis.queryText);
+      analysis.estimatedComplexity = this.calculateComplexity(analysis);
+    }
+
+    // 인수 분석
+    analysis.hasFileArguments = this.hasFileArguments(args);
+    analysis.hasModelArguments = this.hasModelArguments(args);
+    analysis.hasVisualizationRequest = this.hasVisualizationRequest(args);
+
+    return analysis;
+  }
+
+  extractQueryText(args) {
+    // 다양한 인수 형태에서 쿼리 텍스트 추출
+    const possibleKeys = ['query', 'prompt', 'request', 'message', 'text'];
+    
+    for (const key of possibleKeys) {
+      if (args[key] && typeof args[key] === 'string') {
+        return args[key];
+      }
+    }
+
+    // 객체 전체를 문자열로 변환
+    return JSON.stringify(args);
+  }
+
+  calculateComplexity(analysis) {
+    let complexity = 0;
+
+    // 기본 복잡도
+    if (analysis.wordCount) {
+      complexity += Math.min(analysis.wordCount * 0.01, 0.3);
+    }
+
+    // 연산 복잡도
+    const operationComplexity = {
+      'basic_stats': 0.1,
+      'correlation': 0.15,
+      'visualization': 0.2,
+      'clustering': 0.4,
+      'classification': 0.5,
+      'regression': 0.5,
+      'deep_learning': 0.8,
+      'pipeline': 0.6,
+      'feature_engineering': 0.3
+    };
+
+    for (const operation of analysis.requiredOperations) {
+      complexity += operationComplexity[operation] || 0.2;
+    }
+
+    // 데이터 크기 고려
+    if (analysis.hasDataFiles) {
+      complexity += 0.1;
+    }
+
+    // 파일 인수 고려
+    if (analysis.hasFileArguments) {
+      complexity += 0.15;
+    }
+
+    // 모델 관련 작업
+    if (analysis.hasModelArguments) {
+      complexity += 0.3;
+    }
+
+    return Math.min(complexity, 1.0);
+  }
+
+  extractOperations(queryText) {
+    const operations = [];
+    const lowerQuery = queryText.toLowerCase();
+
+    const operationPatterns = {
+      'basic_stats': ['통계', 'statistics', 'describe', 'summary', '요약'],
+      'correlation': ['상관관계', 'correlation', 'relationship', '관계'],
+      'visualization': ['시각화', 'plot', 'chart', 'graph', '차트', '그래프'],
+      'clustering': ['클러스터', 'cluster', 'grouping', '그룹화'],
+      'classification': ['분류', 'classification', 'classify', '예측'],
+      'regression': ['회귀', 'regression', 'predict', '예측'],
+      'deep_learning': ['딥러닝', 'deep learning', 'neural network', '신경망'],
+      'pipeline': ['파이프라인', 'pipeline', 'workflow', '워크플로우'],
+      'feature_engineering': ['피처', 'feature', 'engineering', '특성']
+    };
+
+    for (const [operation, patterns] of Object.entries(operationPatterns)) {
+      if (patterns.some(pattern => lowerQuery.includes(pattern))) {
+        operations.push(operation);
+      }
+    }
+
+    return operations;
+  }
+
+  async analyzeIntent(queryAnalysis) {
+    const prompt = this.buildIntentAnalysisPrompt(queryAnalysis);
+    
     try {
-      // 도구 자체의 복잡도
-      const toolMapping = this.toolMappings.get(toolName);
-      if (toolMapping) {
-        complexity = toolMapping.complexity;
-      }
+      const response = await this.modelManager.queryModel('router', prompt, {
+        temperature: 0.1,
+        max_tokens: 300
+      });
 
-      // 인자의 복잡도 분석
-      if (args) {
-        // 데이터 크기 고려
-        if (args.dataSize) {
-          if (args.dataSize > 1000000) complexity += 0.3; // 1M 이상
-          else if (args.dataSize > 100000) complexity += 0.2; // 100K 이상
-          else if (args.dataSize > 10000) complexity += 0.1; // 10K 이상
-        }
-
-        // 파라미터 개수 고려
-        const paramCount = Object.keys(args).length;
-        if (paramCount > 10) complexity += 0.2;
-        else if (paramCount > 5) complexity += 0.1;
-
-        // 특정 복잡한 옵션들 고려
-        if (args.deepLearning) complexity += 0.3;
-        if (args.crossValidation) complexity += 0.2;
-        if (args.hyperparameterTuning) complexity += 0.3;
-        if (args.ensembleMethods) complexity += 0.2;
-      }
-
-      return Math.min(complexity, 1.0); // 최대값 1.0으로 제한
+      const intent = this.parseIntentResponse(response);
+      
+      // 규칙 기반 검증 및 보강
+      return this.enhanceIntentWithRules(intent, queryAnalysis);
+      
     } catch (error) {
-      this.logger.warn('복잡도 분석 실패, 기본값 사용:', error);
-      return 0.5;
+      this.logger.error('의도 분석 실패:', error);
+      return this.createFallbackIntent(queryAnalysis);
     }
   }
 
-  async analyzeIntent(toolName, args) {
-    try {
-      // 도구 이름 기반 의도 파악
-      for (const [category, config] of Object.entries(this.routingRules)) {
-        if (config.keywords) {
-          const isMatch = config.keywords.some(keyword => 
-            toolName.toLowerCase().includes(keyword.toLowerCase()) ||
-            (args && JSON.stringify(args).toLowerCase().includes(keyword.toLowerCase()))
-          );
-          
-          if (isMatch) {
-            return {
-              category: category,
-              confidence: 0.8,
-              keywords: config.keywords.filter(k => 
-                toolName.toLowerCase().includes(k.toLowerCase())
-              )
-            };
-          }
-        }
-      }
+  buildIntentAnalysisPrompt(queryAnalysis) {
+    return `사용자 요청을 분석해주세요:
 
-      // 도구 매핑 기반 의도 파악
-      if (this.toolMappings.has(toolName)) {
-        const toolMapping = this.toolMappings.get(toolName);
-        const category = this.categorizeByPath(toolMapping.path);
+도구: ${queryAnalysis.toolName}
+쿼리: ${queryAnalysis.queryText}
+복잡도: ${queryAnalysis.estimatedComplexity}
+필요 연산: ${queryAnalysis.requiredOperations.join(', ')}
+
+다음 JSON 형식으로 응답해주세요:
+{
+  "primary_intent": "main_goal",
+  "confidence": 0.0-1.0,
+  "complexity_level": "simple|medium|complex",
+  "data_intensive": true/false,
+  "requires_ml": true/false,
+  "requires_visualization": true/false,
+  "suggested_model": "router|processor",
+  "reasoning": "결정 이유"
+}
+
+분류 기준:
+- simple: 기본 질의, 도움말, 상태 확인
+- medium: 기본 분석, 단순 시각화
+- complex: ML 모델링, 복잡한 분석, 파이프라인`;
+  }
+
+  parseIntentResponse(response) {
+    try {
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
         
-        return {
-          category: category,
-          confidence: 0.7,
-          toolBased: true
-        };
+        // 유효성 검증
+        if (parsed.primary_intent && parsed.confidence !== undefined) {
+          return parsed;
+        }
       }
-
-      // 기본 의도
-      return {
-        category: 'general',
-        confidence: 0.3,
-        fallback: true
-      };
-
     } catch (error) {
-      this.logger.warn('의도 분석 실패:', error);
-      return { category: 'general', confidence: 0.1, error: true };
+      this.logger.warn('의도 분석 응답 파싱 실패:', error);
+    }
+
+    return null;
+  }
+
+  enhanceIntentWithRules(intent, queryAnalysis) {
+    if (!intent) {
+      return this.createFallbackIntent(queryAnalysis);
+    }
+
+    // 규칙 기반 복잡도 검증
+    const ruleBasedComplexity = this.getRuleBasedComplexity(queryAnalysis);
+    
+    // AI와 규칙 기반 결과 결합
+    const enhancedIntent = {
+      ...intent,
+      rule_based_complexity: ruleBasedComplexity,
+      final_complexity: this.combineComplexityScores(
+        queryAnalysis.estimatedComplexity,
+        ruleBasedComplexity,
+        intent.confidence
+      )
+    };
+
+    return enhancedIntent;
+  }
+
+  getRuleBasedComplexity(queryAnalysis) {
+    const rules = this.routingRules.complexity_thresholds;
+    
+    // 키워드 기반 복잡도 판단
+    for (const [level, config] of Object.entries(rules)) {
+      if (config.keywords) {
+        const hasKeywords = config.keywords.some(keyword =>
+          queryAnalysis.queryText.toLowerCase().includes(keyword.toLowerCase())
+        );
+        
+        if (hasKeywords) {
+          return level;
+        }
+      }
+    }
+
+    // 연산 기반 복잡도 판단
+    if (queryAnalysis.requiredOperations.includes('deep_learning')) {
+      return 'complex';
+    } else if (queryAnalysis.requiredOperations.includes('clustering') || 
+               queryAnalysis.requiredOperations.includes('classification')) {
+      return 'medium';
+    } else {
+      return 'simple';
     }
   }
 
-  categorizeByPath(path) {
-    if (path.includes('/data/')) return 'data_operations';
-    if (path.includes('/analysis/')) return 'basic_analysis';
-    if (path.includes('/ml/')) return 'ml_operations';
-    if (path.includes('/visualization/')) return 'visualization';
-    return 'general';
+  combineComplexityScores(numerical, categorical, confidence) {
+    const categoryToNumber = {
+      'simple': 0.2,
+      'medium': 0.5,
+      'complex': 0.8
+    };
+
+    const categoricalScore = categoryToNumber[categorical] || 0.5;
+    
+    // 신뢰도에 따른 가중 평균
+    const combined = (numerical * confidence) + (categoricalScore * (1 - confidence));
+    
+    return Math.max(0, Math.min(1, combined));
   }
 
-  selectModel(intent, complexity) {
-    try {
-      // 복잡도 기반 모델 선택
-      if (complexity >= this.complexityThresholds.complex) {
-        return 'processor'; // 복잡한 작업은 프로세서 모델
-      }
+  async makeRoutingDecision(queryAnalysis, intentAnalysis) {
+    const decision = {
+      taskType: this.determineTaskType(intentAnalysis),
+      model: this.selectModel(intentAnalysis, queryAnalysis),
+      tools: this.selectTools(intentAnalysis, queryAnalysis),
+      confidence: intentAnalysis.confidence,
+      reasoning: this.generateReasoning(intentAnalysis, queryAnalysis),
+      resourceEstimate: queryAnalysis.resourceRequirements,
+      fallbackModel: null,
+      adaptiveOptions: {}
+    };
 
-      // 의도 기반 모델 선택
-      const categoryConfig = this.routingRules[intent.category];
-      if (categoryConfig && categoryConfig.model) {
-        return categoryConfig.model;
-      }
+    // 폴백 모델 설정
+    if (decision.model === 'router' && intentAnalysis.final_complexity > 0.4) {
+      decision.fallbackModel = 'processor';
+    }
 
-      // 기본적으로 복잡도에 따라 결정
-      if (complexity >= this.complexityThresholds.medium) {
+    // 적응형 옵션 설정
+    if (this.adaptiveLearning.enabled) {
+      decision.adaptiveOptions = this.generateAdaptiveOptions(intentAnalysis);
+    }
+
+    return decision;
+  }
+
+  determineTaskType(intentAnalysis) {
+    switch (intentAnalysis.complexity_level) {
+      case 'simple':
+        return 'simple_query';
+      case 'medium':
+        return intentAnalysis.requires_ml ? 'ml_analysis' : 'data_analysis';
+      case 'complex':
+        return intentAnalysis.requires_ml ? 'advanced_ml' : 'complex_analysis';
+      default:
+        return 'general';
+    }
+  }
+
+  selectModel(intentAnalysis, queryAnalysis) {
+    // 명시적인 모델 제안이 있으면 우선 사용
+    if (intentAnalysis.suggested_model && 
+        intentAnalysis.confidence > this.adaptiveLearning.confidenceThreshold) {
+      return intentAnalysis.suggested_model;
+    }
+
+    // 복잡도 기반 결정
+    if (intentAnalysis.final_complexity < 0.3) {
+      return 'router';
+    } else if (intentAnalysis.final_complexity > 0.6) {
+      return 'processor';
+    } else {
+      // 중간 복잡도 - 추가 조건 확인
+      if (intentAnalysis.data_intensive || intentAnalysis.requires_ml) {
         return 'processor';
       } else {
         return 'router';
       }
-
-    } catch (error) {
-      this.logger.warn('모델 선택 실패, 기본값 사용:', error);
-      return 'router';
     }
   }
 
-  selectTools(intent, primaryTool, args) {
-    try {
-      const tools = [primaryTool];
+  selectTools(intentAnalysis, queryAnalysis) {
+    const tools = [];
 
-      // 의도 기반 추가 도구 선택
-      const categoryConfig = this.routingRules[intent.category];
-      if (categoryConfig && categoryConfig.tools) {
-        categoryConfig.tools.forEach(tool => {
-          if (!tools.includes(tool)) {
-            tools.push(tool);
-          }
-        });
-      }
-
-      // 의존성 기반 도구 추가
-      const dependencies = this.getDependencies(primaryTool, args);
-      dependencies.forEach(dep => {
-        if (!tools.includes(dep)) {
-          tools.push(dep);
-        }
-      });
-
-      return tools;
-
-    } catch (error) {
-      this.logger.warn('도구 선택 실패:', error);
-      return [primaryTool];
-    }
-  }
-
-  getDependencies(toolName, args) {
-    const dependencies = [];
-
-    // 데이터가 필요한 경우 data-loader 추가
-    if (this.requiresData(toolName) && args && !args.data) {
-      dependencies.push('data-loader');
+    // 기본 도구 선택
+    if (intentAnalysis.data_intensive) {
+      tools.push('data_loader', 'data_validator');
     }
 
-    // 데이터 검증이 필요한 경우
-    if (this.requiresValidation(toolName)) {
-      dependencies.push('data-validator');
+    if (intentAnalysis.requires_ml) {
+      tools.push('ml_trainer', 'model_evaluator');
     }
 
-    // 시각화가 필요한 경우
-    if (this.requiresVisualization(toolName, args)) {
-      dependencies.push('chart-generator');
+    if (intentAnalysis.requires_visualization) {
+      tools.push('chart_generator', 'plot_manager');
     }
 
-    return dependencies;
-  }
-
-  requiresData(toolName) {
-    const dataRequiredTools = ['basic-analyzer', 'advanced-analyzer', 'trainer', 'predictor'];
-    return dataRequiredTools.includes(toolName);
-  }
-
-  requiresValidation(toolName) {
-    const validationRequiredTools = ['trainer', 'advanced-analyzer'];
-    return validationRequiredTools.includes(toolName);
-  }
-
-  requiresVisualization(toolName, args) {
-    if (args && args.visualization === false) return false;
-    
-    const vizTools = ['basic-analyzer', 'advanced-analyzer', 'time-series-analyzer'];
-    return vizTools.includes(toolName);
-  }
-
-  createExecutionPlan(intent, tools, complexity) {
-    const plan = {
-      steps: [],
-      parallel: [],
-      sequential: []
-    };
-
-    try {
-      // 순차 실행이 필요한 단계들
-      const sequentialTools = ['data-loader', 'data-validator'];
-      const parallelTools = ['chart-generator', 'plot-manager'];
-
-      tools.forEach(tool => {
-        if (sequentialTools.includes(tool)) {
-          plan.sequential.push({
-            tool: tool,
-            order: sequentialTools.indexOf(tool),
-            critical: true
-          });
-        } else if (parallelTools.includes(tool)) {
-          plan.parallel.push({
-            tool: tool,
-            critical: false
-          });
-        } else {
-          plan.steps.push({
-            tool: tool,
-            dependencies: this.getDependencies(tool),
-            critical: true
-          });
-        }
-      });
-
-      // 실행 순서 정렬
-      plan.sequential.sort((a, b) => a.order - b.order);
-
-      return plan;
-
-    } catch (error) {
-      this.logger.warn('실행 계획 생성 실패:', error);
-      return {
-        steps: tools.map(tool => ({ tool, critical: true })),
-        parallel: [],
-        sequential: []
-      };
+    // 파이썬 실행기 필요 여부
+    if (queryAnalysis.requiredOperations.length > 0 && 
+        !queryAnalysis.requiredOperations.every(op => op === 'basic_stats')) {
+      tools.push('python_executor');
     }
+
+    // 결과 포매터는 항상 포함
+    tools.push('result_formatter');
+
+    return tools.length > 0 ? tools : ['basic_response'];
   }
 
-  determinePriority(complexity, intent) {
-    if (intent.category === 'system') return 'high';
-    if (complexity >= this.complexityThresholds.complex) return 'high';
-    if (complexity >= this.complexityThresholds.medium) return 'medium';
-    return 'low';
+  generateReasoning(intentAnalysis, queryAnalysis) {
+    const reasons = [];
+
+    reasons.push(`복잡도: ${intentAnalysis.final_complexity.toFixed(2)}`);
+    reasons.push(`의도: ${intentAnalysis.primary_intent}`);
+    reasons.push(`신뢰도: ${intentAnalysis.confidence.toFixed(2)}`);
+
+    if (intentAnalysis.data_intensive) {
+      reasons.push('데이터 집약적 작업');
+    }
+
+    if (intentAnalysis.requires_ml) {
+      reasons.push('머신러닝 필요');
+    }
+
+    if (queryAnalysis.requiredOperations.length > 0) {
+      reasons.push(`연산: ${queryAnalysis.requiredOperations.join(', ')}`);
+    }
+
+    return reasons.join(', ');
   }
 
-  estimateExecutionTime(tools, complexity) {
-    const baseTime = 1000; // 1초
-    const complexityMultiplier = 1 + complexity * 2;
-    const toolMultiplier = tools.length * 0.5;
-    
-    return Math.round(baseTime * complexityMultiplier * toolMultiplier);
-  }
-
-  calculateResourceRequirements(tools, complexity) {
-    const baseMemory = 100; // 100MB
-    const baseCPU = 1;
-
-    const memoryRequirement = baseMemory + (complexity * 500) + (tools.length * 50);
-    const cpuRequirement = baseCPU + Math.floor(complexity * 2);
-
-    return {
-      memory_mb: Math.round(memoryRequirement),
-      cpu_cores: Math.min(cpuRequirement, 8), // 최대 8코어
-      gpu_required: complexity >= 0.8 && tools.some(t => t.includes('deep-learning')),
-      disk_space_mb: 50 + (tools.length * 10)
-    };
-  }
-
+  // 시스템 도구 확인
   isSystemTool(toolName) {
     const systemTools = [
-      'help', 'status', 'version', 'exit', 'quit',
-      'list-tools', 'clear', 'reset', 'debug'
+      'get_system_status', 'change_mode', 'health_check',
+      'system_status', 'mode_switch', 'config_update'
     ];
-    return systemTools.includes(toolName.toLowerCase());
+    return systemTools.includes(toolName);
   }
 
-  createFallbackRoute(toolName, args) {
+  // 리소스 요구사항 추정
+  estimateResourceRequirements(args) {
+    return {
+      memory_mb: 500,
+      cpu_cores: 1,
+      gpu_required: false,
+      estimated_time: 30
+    };
+  }
+
+  // 파일 관련 검사 메서드들
+  detectDataFiles(queryText) {
+    const fileExtensions = ['.csv', '.xlsx', '.json', '.parquet', '.h5'];
+    return fileExtensions.some(ext => queryText.toLowerCase().includes(ext));
+  }
+
+  hasFileArguments(args) {
+    const fileKeys = ['file_path', 'filename', 'data_file', 'input_file'];
+    return fileKeys.some(key => args[key]);
+  }
+
+  hasModelArguments(args) {
+    const modelKeys = ['model_type', 'algorithm', 'model_name'];
+    return modelKeys.some(key => args[key]);
+  }
+
+  hasVisualizationRequest(args) {
+    const vizKeys = ['chart_type', 'plot_type', 'visualization'];
+    const vizValues = ['chart', 'plot', 'graph', 'visual'];
+    
+    return vizKeys.some(key => args[key]) ||
+           Object.values(args).some(value => 
+             typeof value === 'string' && 
+             vizValues.some(viz => value.toLowerCase().includes(viz))
+           );
+  }
+
+  // 성능 및 학습 관련 메서드들
+  initializePerformanceMetrics() {
+    this.performanceMetrics.set('total_requests', 0);
+    this.performanceMetrics.set('successful_routes', 0);
+    this.performanceMetrics.set('average_response_time', 0);
+    this.performanceMetrics.set('model_accuracy', new Map());
+  }
+
+  recordRoutingDecision(toolName, decision, executionTime, error = null) {
+    const record = {
+      timestamp: new Date().toISOString(),
+      toolName,
+      decision,
+      executionTime,
+      success: !error,
+      error: error?.message
+    };
+
+    this.routingHistory.push(record);
+
+    // 히스토리 크기 제한
+    if (this.routingHistory.length > 1000) {
+      this.routingHistory = this.routingHistory.slice(-500);
+    }
+
+    // 성능 지표 업데이트
+    this.updatePerformanceMetrics(record);
+  }
+
+  updatePerformanceMetrics(record) {
+    const total = this.performanceMetrics.get('total_requests') + 1;
+    this.performanceMetrics.set('total_requests', total);
+
+    if (record.success) {
+      this.performanceMetrics.set('successful_routes',
+        this.performanceMetrics.get('successful_routes') + 1);
+    }
+
+    // 평균 응답 시간 업데이트
+    const currentAvg = this.performanceMetrics.get('average_response_time');
+    const newAvg = (currentAvg * (total - 1) + record.executionTime) / total;
+    this.performanceMetrics.set('average_response_time', newAvg);
+  }
+
+  applyAdaptiveLearning(decision, queryAnalysis) {
+    // 실제 구현에서는 더 복잡한 학습 알고리즘 사용
+    // 여기서는 간단한 예시만 제공
+    
+    if (decision.confidence < this.adaptiveLearning.confidenceThreshold) {
+      this.logger.info('낮은 신뢰도로 인한 적응형 학습 적용');
+      // 학습 로직 구현
+    }
+  }
+
+  generateAdaptiveOptions(intentAnalysis) {
+    return {
+      enable_fallback: intentAnalysis.confidence < 0.6,
+      monitor_performance: true,
+      collect_feedback: true
+    };
+  }
+
+  createFallbackDecision(toolName, error) {
     return {
       taskType: 'fallback',
       model: 'router',
-      tools: [toolName],
-      complexity: 0.3,
-      priority: 'medium',
-      executionPlan: {
-        steps: [{ tool: toolName, critical: true }],
-        parallel: [],
-        sequential: []
-      },
-      estimatedTime: 2000,
-      resourceRequirements: {
-        memory_mb: 200,
-        cpu_cores: 1,
-        gpu_required: false,
-        disk_space_mb: 20
-      },
-      fallback: true
+      tools: ['error_handler', 'basic_response'],
+      confidence: 0.1,
+      reasoning: `폴백 모드: ${error.message}`,
+      error: true,
+      fallbackModel: null
     };
   }
 
-  // 라우팅 통계 및 성능 모니터링
-  getRoutingStats() {
+  createFallbackIntent(queryAnalysis) {
     return {
-      totalRoutes: this.routingStats?.total || 0,
-      successfulRoutes: this.routingStats?.successful || 0,
-      failedRoutes: this.routingStats?.failed || 0,
-      averageComplexity: this.routingStats?.avgComplexity || 0,
-      mostUsedModel: this.routingStats?.mostUsedModel || 'router',
-      mostUsedTools: this.routingStats?.mostUsedTools || []
+      primary_intent: 'general_query',
+      confidence: 0.3,
+      complexity_level: 'medium',
+      data_intensive: queryAnalysis.hasDataFiles,
+      requires_ml: false,
+      requires_visualization: false,
+      suggested_model: 'processor',
+      reasoning: 'Fallback intent due to analysis failure',
+      final_complexity: Math.max(0.3, queryAnalysis.estimatedComplexity)
     };
   }
 
-  // 설정 리로드
-  async reloadConfigurations() {
+  // 간단한 작업 처리
+  async handleSimpleTask(args) {
+    const prompt = `사용자 요청에 간단히 응답해주세요: ${JSON.stringify(args)}`;
+    
     try {
-      await this.loadConfigurations();
-      this.setupToolMappings();
-      this.logger.info('라우팅 설정 리로드 완료');
-      return true;
+      const response = await this.modelManager.queryModel('router', prompt, {
+        temperature: 0.3,
+        max_tokens: 512
+      });
+
+      return {
+        content: [{
+          type: 'text',
+          text: response
+        }],
+        model_used: 'router',
+        execution_time: Date.now()
+      };
     } catch (error) {
-      this.logger.error('설정 리로드 실패:', error);
-      return false;
+      this.logger.error('간단한 작업 처리 실패:', error);
+      throw error;
+    }
+  }
+
+  // 통계 및 상태 정보
+  getRoutingStatistics() {
+    const totalRequests = this.performanceMetrics.get('total_requests');
+    const successfulRoutes = this.performanceMetrics.get('successful_routes');
+    
+    return {
+      total_requests: totalRequests,
+      successful_routes: successfulRoutes,
+      success_rate: totalRequests > 0 ? (successfulRoutes / totalRequests) : 0,
+      average_response_time: this.performanceMetrics.get('average_response_time'),
+      recent_history: this.routingHistory.slice(-10),
+      adaptive_learning: this.adaptiveLearning
+    };
+  }
+
+  // 설정 업데이트
+  async updateRoutingRules(newRules) {
+    try {
+      this.routingRules = { ...this.routingRules, ...newRules };
+      await this.configLoader.updateConfig('routing-rules', this.routingRules);
+      this.logger.info('라우팅 규칙 업데이트 완료');
+    } catch (error) {
+      this.logger.error('라우팅 규칙 업데이트 실패:', error);
+      throw error;
     }
   }
 }

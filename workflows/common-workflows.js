@@ -410,10 +410,285 @@ export class CommonWorkflows {
     };
   }
 
+  // workflows/common-workflows.js - getWorkflow 함수 및 관련 메서드 완성
+
   getWorkflow(workflowName) {
-    return this.workflowTemplates[workflowName] || null;
+    // 워크플로우 템플릿에서 찾기
+    if (this.workflowTemplates[workflowName]) {
+      return this.workflowTemplates[workflowName];
+    }
+
+    // 부분 이름 매칭 시도
+    const matchingWorkflows = Object.keys(this.workflowTemplates).filter(name =>
+      name.includes(workflowName.toLowerCase()) ||
+      workflowName.toLowerCase().includes(name)
+    );
+
+    if (matchingWorkflows.length === 1) {
+      return this.workflowTemplates[matchingWorkflows[0]];
+    }
+
+    if (matchingWorkflows.length > 1) {
+      this.logger.warn(`여러 워크플로우가 매칭됨: ${matchingWorkflows.join(', ')}`);
+      return this.workflowTemplates[matchingWorkflows[0]]; // 첫 번째 매칭 반환
+    }
+
+    // 키워드 기반 검색
+    const keywordMatches = this.getWorkflowsByKeywords([workflowName]);
+    if (keywordMatches.length > 0) {
+      this.logger.info(`키워드 매칭으로 워크플로우 찾음: ${keywordMatches[0].name}`);
+      return keywordMatches[0].workflow;
+    }
+
+    this.logger.warn(`워크플로우를 찾을 수 없음: ${workflowName}`);
+    return null;
   }
 
+  // 추가 헬퍼 메서드들 구현
+  estimateExecutionTime(workflow) {
+    if (workflow.estimated_time) {
+      return workflow.estimated_time;
+    }
+
+    const stepTimes = {
+      'data_loading': 10,
+      'basic': 15,
+      'advanced': 45,
+      'ml_traditional': 120,
+      'deep_learning': 600,
+      'visualization': 8,
+      'timeseries': 60,
+      'preprocessing': 25,
+      'postprocessing': 10
+    };
+
+    let totalTime = 0;
+    workflow.steps.forEach(step => {
+      const baseTime = stepTimes[step.type] || 30;
+      
+      // 파라미터에 따른 시간 조정
+      let multiplier = 1;
+      if (step.params) {
+        if (step.params.n_clusters && step.params.n_clusters > 5) multiplier *= 1.5;
+        if (step.params.epochs && step.params.epochs > 50) multiplier *= 2;
+        if (step.params.cross_validation && step.params.cv_folds > 3) multiplier *= 1.8;
+      }
+      
+      totalTime += baseTime * multiplier;
+    });
+
+    return Math.round(totalTime);
+  }
+
+  calculateResourceRequirements(workflow) {
+    const requirements = {
+      memory_mb: 200,
+      cpu_cores: 1,
+      gpu_required: false,
+      disk_space_mb: 100
+    };
+
+    workflow.steps.forEach(step => {
+      const stepProfile = this.getStepResourceProfile(step);
+      
+      requirements.memory_mb = Math.max(requirements.memory_mb, stepProfile.memory_mb);
+      requirements.cpu_cores = Math.max(requirements.cpu_cores, stepProfile.cpu_cores);
+      requirements.gpu_required = requirements.gpu_required || stepProfile.gpu_required;
+      requirements.disk_space_mb += stepProfile.disk_space_mb || 0;
+    });
+
+    return requirements;
+  }
+
+  getStepResourceProfile(step) {
+    const profiles = {
+      'data_loading': { memory_mb: 300, cpu_cores: 1, gpu_required: false, disk_space_mb: 50 },
+      'basic': { memory_mb: 200, cpu_cores: 1, gpu_required: false, disk_space_mb: 20 },
+      'advanced': { memory_mb: 800, cpu_cores: 2, gpu_required: false, disk_space_mb: 100 },
+      'ml_traditional': { memory_mb: 1500, cpu_cores: 2, gpu_required: false, disk_space_mb: 200 },
+      'deep_learning': { memory_mb: 4000, cpu_cores: 4, gpu_required: true, disk_space_mb: 500 },
+      'visualization': { memory_mb: 150, cpu_cores: 1, gpu_required: false, disk_space_mb: 30 },
+      'timeseries': { memory_mb: 600, cpu_cores: 1, gpu_required: false, disk_space_mb: 80 },
+      'preprocessing': { memory_mb: 400, cpu_cores: 1, gpu_required: false, disk_space_mb: 40 },
+      'postprocessing': { memory_mb: 250, cpu_cores: 1, gpu_required: false, disk_space_mb: 30 }
+    };
+
+    const baseProfile = profiles[step.type] || profiles['basic'];
+    
+    // 파라미터에 따른 리소스 조정
+    const adjustedProfile = { ...baseProfile };
+    
+    if (step.params) {
+      // 대용량 데이터 처리
+      if (step.params.batch_size && step.params.batch_size > 1000) {
+        adjustedProfile.memory_mb *= 2;
+      }
+      
+      // 복잡한 모델
+      if (step.params.model_complexity === 'high') {
+        adjustedProfile.memory_mb *= 1.5;
+        adjustedProfile.cpu_cores = Math.max(adjustedProfile.cpu_cores, 2);
+      }
+      
+      // GPU 가속 요청
+      if (step.params.use_gpu === true) {
+        adjustedProfile.gpu_required = true;
+        adjustedProfile.memory_mb *= 0.7; // GPU 메모리 사용으로 RAM 사용량 감소
+      }
+    }
+
+    return adjustedProfile;
+  }
+
+  estimateStepTime(step) {
+    const baseTimes = {
+      'data_loading': 10,
+      'basic': 15,
+      'advanced': 45,
+      'ml_traditional': 120,
+      'deep_learning': 600,
+      'visualization': 8,
+      'timeseries': 60,
+      'preprocessing': 25,
+      'postprocessing': 10
+    };
+
+    const baseTime = baseTimes[step.type] || 30;
+    
+    // 메서드별 세부 조정
+    let methodMultiplier = 1;
+    const methodAdjustments = {
+      'descriptive_stats': 0.5,
+      'correlation': 0.8,
+      'outlier_detection': 1.5,
+      'feature_engineering': 1.2,
+      'classification': 2.0,
+      'regression': 1.8,
+      'clustering': 1.3,
+      'deep_neural_network': 5.0,
+      'cnn': 8.0,
+      'rnn': 6.0
+    };
+    
+    if (methodAdjustments[step.method]) {
+      methodMultiplier = methodAdjustments[step.method];
+    }
+
+    // 파라미터에 따른 조정
+    let paramMultiplier = 1;
+    if (step.params) {
+      if (step.params.n_iterations && step.params.n_iterations > 100) {
+        paramMultiplier *= 1.5;
+      }
+      if (step.params.cross_validation) {
+        paramMultiplier *= (step.params.cv_folds || 5) * 0.3;
+      }
+      if (step.params.grid_search) {
+        paramMultiplier *= 3;
+      }
+    }
+
+    return Math.round(baseTime * methodMultiplier * paramMultiplier);
+  }
+
+  isOutputAvailable(steps, currentIndex, requiredOutput) {
+    // 현재 단계 이전의 모든 단계에서 필요한 출력을 찾기
+    for (let i = 0; i < currentIndex; i++) {
+      const step = steps[i];
+      if (step.outputs && step.outputs.includes(requiredOutput)) {
+        return true;
+      }
+    }
+    
+    // 기본적으로 사용 가능한 출력들 (데이터 로딩 등)
+    const defaultOutputs = ['dataset', 'metadata', 'file_info'];
+    return defaultOutputs.includes(requiredOutput);
+  }
+
+  detectCircularDependencies(workflow) {
+    const graph = new Map();
+    const visited = new Set();
+    const recursionStack = new Set();
+
+    // 의존성 그래프 구축
+    workflow.steps.forEach((step, index) => {
+      const stepId = `${index}_${step.type}_${step.method}`;
+      graph.set(stepId, []);
+      
+      if (step.requires) {
+        step.requires.forEach(requirement => {
+          // 이 requirement를 제공하는 이전 단계들 찾기
+          for (let i = 0; i < index; i++) {
+            const prevStep = workflow.steps[i];
+            if (prevStep.outputs && prevStep.outputs.includes(requirement)) {
+              const prevStepId = `${i}_${prevStep.type}_${prevStep.method}`;
+              graph.get(stepId).push(prevStepId);
+            }
+          }
+        });
+      }
+    });
+
+    // DFS로 순환 의존성 확인
+    function hasCycle(node) {
+      if (recursionStack.has(node)) return true;
+      if (visited.has(node)) return false;
+
+      visited.add(node);
+      recursionStack.add(node);
+
+      const neighbors = graph.get(node) || [];
+      for (const neighbor of neighbors) {
+        if (hasCycle(neighbor)) return true;
+      }
+
+      recursionStack.delete(node);
+      return false;
+    }
+
+    for (const node of graph.keys()) {
+      if (!visited.has(node) && hasCycle(node)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  normalizeWorkflow(workflow) {
+    // 워크플로우 정규화 (기본값 설정 등)
+    const normalized = {
+      name: workflow.name || 'unnamed_workflow',
+      description: workflow.description || '',
+      category: workflow.category || 'custom',
+      steps: [],
+      estimated_time: workflow.estimated_time || null,
+      resource_requirements: workflow.resource_requirements || null
+    };
+
+    // 각 단계 정규화
+    workflow.steps.forEach(step => {
+      const normalizedStep = {
+        type: step.type,
+        method: step.method,
+        params: step.params || {},
+        outputs: step.outputs || [],
+        requires: step.requires || []
+      };
+      normalized.steps.push(normalizedStep);
+    });
+
+    // 자동 계산
+    if (!normalized.estimated_time) {
+      normalized.estimated_time = this.estimateExecutionTime(normalized);
+    }
+    
+    if (!normalized.resource_requirements) {
+      normalized.resource_requirements = this.calculateResourceRequirements(normalized);
+    }
+
+    return normalized;
+  }
   getAllWorkflows() {
     return this.workflowTemplates;
   }

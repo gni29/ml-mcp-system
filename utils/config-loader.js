@@ -6,743 +6,473 @@ import path from 'path';
 export class ConfigLoader {
   constructor() {
     this.logger = new Logger();
-    this.configDir = './config';
-    this.cache = new Map();
+    this.configCache = new Map();
     this.watchedFiles = new Map();
-    this.enableCache = true;
-    this.enableWatch = false;
-    this.defaultConfigs = new Map();
-    
-    this.setupDefaultConfigs();
+    this.configDir = './config';
+    this.defaultConfigs = this.initializeDefaultConfigs();
   }
 
-  setupDefaultConfigs() {
-    // 기본 라우팅 규칙
-    this.defaultConfigs.set('routing-rules.json', {
-      simple_queries: {
-        keywords: ['안녕', '도움말', '상태', '모드', '종료', 'help', 'status'],
-        maxComplexity: 0.3,
-        model: 'router',
-        tools: ['system']
-      },
-      data_operations: {
-        keywords: ['로드', '불러오기', '데이터', '파일', 'load', 'read'],
-        complexity: [0.2, 0.6],
-        model: 'router',
-        tools: ['data-loader', 'data-validator']
-      },
-      analysis: {
-        keywords: ['분석', '통계', '상관관계', 'analysis', 'stats'],
-        complexity: [0.3, 0.7],
-        model: 'router',
-        tools: ['basic-analyzer']
-      },
-      ml_operations: {
-        keywords: ['모델', '훈련', '예측', '머신러닝', 'training', 'prediction'],
-        minComplexity: 0.7,
-        model: 'processor',
-        tools: ['trainer', 'predictor']
-      }
-    });
-
-    // 기본 Python 설정
-    this.defaultConfigs.set('python-config.json', {
-      python_executable: 'python3',
-      virtual_env: './python-env',
-      timeout: 30000,
-      max_memory_mb: 2048,
-      working_directory: './python',
-      environment_variables: {
-        PYTHONPATH: './python',
-        MATPLOTLIB_BACKEND: 'Agg'
-      },
-      required_packages: [
-        'pandas>=1.3.0',
-        'numpy>=1.21.0',
-        'scikit-learn>=1.0.0',
-        'matplotlib>=3.5.0',
-        'seaborn>=0.11.0'
-      ]
-    });
-
-    // 기본 모델 설정
-    this.defaultConfigs.set('models-config.json', {
-      router: {
-        model: 'llama3.2:3b',
-        endpoint: 'http://localhost:11434',
-        temperature: 0.1,
-        max_tokens: 1024,
-        role: 'routing'
-      },
-      processor: {
-        model: 'qwen2.5:14b',
-        endpoint: 'http://localhost:11434',
-        temperature: 0.3,
-        max_tokens: 2048,
-        role: 'processing'
-      }
-    });
-
-    // 기본 딥러닝 설정
-    this.defaultConfigs.set('deep-learning-config.json', {
-      frameworks: {
-        tensorflow: {
-          enabled: true,
-          gpu_support: false,
-          memory_growth: true
-        },
-        pytorch: {
-          enabled: false,
-          gpu_support: false
-        }
-      },
-      default_parameters: {
-        batch_size: 32,
-        epochs: 100,
-        learning_rate: 0.001,
-        validation_split: 0.2
-      },
-      model_architectures: {
-        simple_nn: {
-          layers: [128, 64, 32],
-          activation: 'relu',
-          dropout: 0.3
-        },
-        cnn_basic: {
-          conv_layers: [32, 64, 128],
-          kernel_size: 3,
-          pool_size: 2,
-          dropout: 0.5
-        }
-      }
-    });
-
-    // 기본 시각화 설정
-    this.defaultConfigs.set('visualization-config.json', {
-      default_style: 'seaborn',
-      color_palettes: {
-        categorical: 'Set1',
-        sequential: 'viridis',
-        diverging: 'RdBu'
-      },
-      figure_size: [10, 6],
-      dpi: 100,
-      file_format: 'png',
-      interactive: false,
-      chart_types: {
-        line: {
-          default_params: { marker: 'o', linewidth: 2 }
-        },
-        bar: {
-          default_params: { alpha: 0.8 }
-        },
-        scatter: {
-          default_params: { alpha: 0.6, s: 50 }
-        },
-        heatmap: {
-          default_params: { cmap: 'viridis', annot: true }
-        }
-      }
-    });
-  }
-
-  async loadConfig(filename, options = {}) {
-    const {
-      useCache = this.enableCache,
-      fallbackToDefault = true,
-      validate = true,
-      watch = this.enableWatch
-    } = options;
-
+  async initialize() {
     try {
-      // 캐시 확인
-      if (useCache && this.cache.has(filename)) {
-        this.logger.debug(`캐시에서 설정 로드: ${filename}`);
-        return this.cache.get(filename);
-      }
-
-      // 파일 경로 구성
-      const filePath = path.join(this.configDir, filename);
+      // 설정 디렉토리 생성
+      await this.ensureConfigDirectory();
       
-      // 파일 존재 여부 확인
-      try {
-        await fs.access(filePath);
-      } catch (error) {
-        if (fallbackToDefault && this.defaultConfigs.has(filename)) {
-          this.logger.warn(`설정 파일 없음, 기본값 사용: ${filename}`);
-          return this.getDefaultConfig(filename);
-        }
-        throw new Error(`설정 파일을 찾을 수 없습니다: ${filename}`);
-      }
-
-      // 파일 읽기
-      const configData = await fs.readFile(filePath, 'utf-8');
-      let config;
-
-      // JSON 파싱
-      try {
-        config = JSON.parse(configData);
-      } catch (parseError) {
-        this.logger.error(`설정 파일 파싱 실패: ${filename}`, parseError);
-        if (fallbackToDefault && this.defaultConfigs.has(filename)) {
-          this.logger.warn('기본 설정으로 대체합니다.');
-          return this.getDefaultConfig(filename);
-        }
-        throw new Error(`설정 파일 파싱 실패: ${filename}`);
-      }
-
-      // 설정 검증
-      if (validate) {
-        const validationResult = this.validateConfig(filename, config);
-        if (!validationResult.valid) {
-          this.logger.warn(`설정 검증 실패: ${filename}`, validationResult.errors);
-          // 검증 실패 시에도 설정을 사용하되 경고만 출력
-        }
-      }
-
-      // 기본값과 병합
-      if (fallbackToDefault && this.defaultConfigs.has(filename)) {
-        config = this.mergeWithDefaults(filename, config);
-      }
-
-      // 캐시에 저장
-      if (useCache) {
-        this.cache.set(filename, config);
-      }
-
-      // 파일 감시 설정
-      if (watch && !this.watchedFiles.has(filename)) {
-        await this.watchConfigFile(filename, filePath);
-      }
-
-      this.logger.info(`설정 로드 완료: ${filename}`);
-      return config;
-
+      // 기본 설정 파일들 생성 (없는 경우)
+      await this.createMissingConfigFiles();
+      
+      // 모든 설정 파일 로드
+      await this.loadAllConfigs();
+      
+      this.logger.info('ConfigLoader 초기화 완료');
     } catch (error) {
-      this.logger.error(`설정 로드 실패: ${filename}`, error);
-      
-      // 최후의 수단으로 기본 설정 반환
-      if (fallbackToDefault && this.defaultConfigs.has(filename)) {
-        this.logger.warn('기본 설정으로 대체합니다.');
-        return this.getDefaultConfig(filename);
-      }
-      
+      this.logger.error('ConfigLoader 초기화 실패:', error);
       throw error;
     }
   }
 
-  getDefaultConfig(filename) {
-    if (this.defaultConfigs.has(filename)) {
-      return JSON.parse(JSON.stringify(this.defaultConfigs.get(filename)));
-    }
-    throw new Error(`기본 설정이 존재하지 않습니다: ${filename}`);
-  }
-
-  validateConfig(filename, config) {
-    const result = {
-      valid: true,
-      errors: [],
-      warnings: []
-    };
-
+  async ensureConfigDirectory() {
     try {
-      switch (filename) {
-        case 'routing-rules.json':
-          result = this.validateRoutingRules(config);
-          break;
-        case 'analysis-methods.json':
-          result = this.validateAnalysisMethods(config);
-          break;
-        case 'pipeline-templates.json':
-          result = this.validatePipelineTemplates(config);
-          break;
-        case 'python-config.json':
-          result = this.validatePythonConfig(config);
-          break;
-        case 'models-config.json':
-          result = this.validateModelsConfig(config);
-          break;
-        default:
-          // 일반적인 JSON 구조 검증
-          result = this.validateGenericConfig(config);
-      }
+      await fs.mkdir(this.configDir, { recursive: true });
+      this.logger.debug(`설정 디렉토리 확인: ${this.configDir}`);
     } catch (error) {
-      result.valid = false;
-      result.errors.push(`검증 중 오류 발생: ${error.message}`);
+      this.logger.error('설정 디렉토리 생성 실패:', error);
+      throw error;
     }
-
-    return result;
   }
 
-  validateRoutingRules(config) {
-    const result = { valid: true, errors: [], warnings: [] };
-
-    if (!config || typeof config !== 'object') {
-      result.valid = false;
-      result.errors.push('라우팅 규칙은 객체여야 합니다.');
-      return result;
-    }
-
-    for (const [ruleName, rule] of Object.entries(config)) {
-      if (!rule.keywords || !Array.isArray(rule.keywords)) {
-        result.warnings.push(`${ruleName}: keywords가 배열이 아닙니다.`);
-      }
-
-      if (rule.complexity && Array.isArray(rule.complexity)) {
-        if (rule.complexity.length !== 2 || 
-            rule.complexity[0] >= rule.complexity[1]) {
-          result.errors.push(`${ruleName}: complexity 범위가 잘못되었습니다.`);
-          result.valid = false;
-        }
-      }
-
-      if (!rule.model) {
-        result.warnings.push(`${ruleName}: model이 지정되지 않았습니다.`);
-      }
-    }
-
-    return result;
-  }
-
-  validateAnalysisMethods(config) {
-    const result = { valid: true, errors: [], warnings: [] };
-
-    const requiredCategories = ['basic', 'advanced', 'timeseries', 'ml_traditional'];
-    
-    for (const category of requiredCategories) {
-      if (!config[category]) {
-        result.warnings.push(`${category} 카테고리가 없습니다.`);
-      } else {
-        for (const [methodName, method] of Object.entries(config[category])) {
-          if (!method.python_script) {
-            result.errors.push(`${category}.${methodName}: python_script가 필요합니다.`);
-            result.valid = false;
+  initializeDefaultConfigs() {
+    return {
+      'analysis-methods.json': {
+        basic: {
+          descriptive_stats: {
+            enabled: true,
+            include_percentiles: true,
+            percentiles: [25, 50, 75, 90, 95, 99],
+            include_skewness: true,
+            include_kurtosis: true
+          },
+          correlation: {
+            enabled: true,
+            methods: ['pearson', 'spearman', 'kendall'],
+            default_method: 'pearson',
+            threshold: 0.5
+          },
+          missing_values: {
+            enabled: true,
+            show_patterns: true,
+            threshold_percent: 5
           }
-
-          if (method.complexity && (method.complexity < 0 || method.complexity > 1)) {
-            result.errors.push(`${category}.${methodName}: complexity는 0-1 사이여야 합니다.`);
-            result.valid = false;
+        },
+        advanced: {
+          outlier_detection: {
+            enabled: true,
+            methods: ['iqr', 'zscore', 'isolation_forest'],
+            default_method: 'iqr',
+            iqr_factor: 1.5,
+            zscore_threshold: 3
+          },
+          feature_engineering: {
+            enabled: true,
+            auto_encoding: true,
+            scaling_methods: ['standard', 'minmax', 'robust'],
+            default_scaling: 'standard'
+          },
+          dimensionality_reduction: {
+            enabled: true,
+            methods: ['pca', 'tsne', 'umap'],
+            default_method: 'pca',
+            n_components: 2
           }
         }
-      }
-    }
+      },
 
-    return result;
-  }
-
-  validatePipelineTemplates(config) {
-    const result = { valid: true, errors: [], warnings: [] };
-
-    const requiredSections = ['common_workflows', 'ml_workflows'];
-    
-    for (const section of requiredSections) {
-      if (!config[section]) {
-        result.warnings.push(`${section} 섹션이 없습니다.`);
-        continue;
-      }
-
-      for (const [workflowName, workflow] of Object.entries(config[section])) {
-        if (!workflow.steps || !Array.isArray(workflow.steps)) {
-          result.errors.push(`${workflowName}: steps가 배열이 아닙니다.`);
-          result.valid = false;
-          continue;
+      'pipeline-templates.json': {
+        data_exploration: {
+          name: 'data_exploration',
+          description: '기본 데이터 탐색 파이프라인',
+          steps: [
+            { type: 'data_loading', method: 'load_dataset' },
+            { type: 'basic', method: 'descriptive_stats' },
+            { type: 'basic', method: 'missing_values_analysis' },
+            { type: 'visualization', method: 'distribution_plots' },
+            { type: 'basic', method: 'correlation' },
+            { type: 'visualization', method: 'correlation_heatmap' }
+          ]
+        },
+        ml_pipeline: {
+          name: 'ml_pipeline',
+          description: '머신러닝 파이프라인',
+          steps: [
+            { type: 'data_loading', method: 'load_dataset' },
+            { type: 'preprocessing', method: 'clean_data' },
+            { type: 'advanced', method: 'feature_engineering' },
+            { type: 'ml_traditional', method: 'train_model' },
+            { type: 'ml_traditional', method: 'evaluate_model' },
+            { type: 'visualization', method: 'model_performance' }
+          ]
         }
+      },
 
-        for (const [stepIndex, step] of workflow.steps.entries()) {
-          if (!step.type || !step.method) {
-            result.errors.push(`${workflowName} 단계 ${stepIndex + 1}: type과 method가 필요합니다.`);
-            result.valid = false;
-          }
+      'python-config.json': {
+        environment: {
+          python_path: 'python3',
+          virtual_env: './python-env',
+          use_virtual_env: true,
+          timeout: 300000
+        },
+        packages: {
+          required: [
+            'pandas>=1.3.0',
+            'numpy>=1.21.0',
+            'scikit-learn>=1.0.0',
+            'matplotlib>=3.5.0',
+            'seaborn>=0.11.0'
+          ],
+          optional: [
+            'plotly>=5.0.0',
+            'tensorflow>=2.8.0',
+            'torch>=1.11.0'
+          ]
+        },
+        execution: {
+          max_memory_mb: 4000,
+          max_execution_time: 300,
+          temp_dir: './temp',
+          cleanup_temp_files: true
+        }
+      },
 
-          if (!step.outputs || !Array.isArray(step.outputs)) {
-            result.warnings.push(`${workflowName} 단계 ${stepIndex + 1}: outputs가 정의되지 않았습니다.`);
-          }
+      'models-config.json': {
+        router: {
+          name: 'llama3.2:3b',
+          description: '빠른 라우팅을 위한 경량 모델',
+          endpoint: 'http://localhost:11434',
+          temperature: 0.7,
+          max_tokens: 500,
+          context_length: 2048,
+          memory_limit_mb: 6000,
+          auto_unload: false,
+          keep_alive: 300000
+        },
+        processor: {
+          name: 'qwen2.5:14b',
+          description: '복잡한 작업을 위한 고성능 모델',
+          endpoint: 'http://localhost:11434',
+          temperature: 0.3,
+          max_tokens: 2000,
+          context_length: 8192,
+          memory_limit_mb: 28000,
+          auto_unload: true,
+          keep_alive: 600000
+        }
+      },
+
+      'visualization-config.json': {
+        default_settings: {
+          figure_size: [10, 8],
+          dpi: 100,
+          style: 'seaborn-v0_8',
+          color_palette: 'Set1',
+          font_size: 12,
+          save_format: 'png'
+        },
+        chart_types: {
+          scatter: { marker_size: 50, alpha: 0.7 },
+          line: { line_width: 2, marker_size: 6 },
+          bar: { width: 0.8, alpha: 0.8 },
+          histogram: { bins: 30, alpha: 0.7 },
+          heatmap: { annot: true, cmap: 'coolwarm' }
+        },
+        export: {
+          formats: ['png', 'jpg', 'svg', 'pdf'],
+          quality: 95,
+          transparent: false,
+          bbox_inches: 'tight'
+        }
+      },
+
+      'routing-rules.json': {
+        intent_patterns: {
+          data_analysis: [
+            'analyze', 'analysis', 'explore', 'examine', 'investigate',
+            'statistics', 'stats', 'summary', 'describe'
+          ],
+          visualization: [
+            'plot', 'chart', 'graph', 'visualize', 'draw', 'show',
+            'histogram', 'scatter', 'heatmap'
+          ],
+          machine_learning: [
+            'train', 'model', 'predict', 'classification', 'regression',
+            'clustering', 'ml', 'machine learning'
+          ],
+          data_processing: [
+            'clean', 'preprocess', 'transform', 'encode', 'scale',
+            'normalize', 'feature engineering'
+          ]
+        },
+        complexity_thresholds: {
+          simple: { token_limit: 500, use_router: true },
+          medium: { token_limit: 1000, use_router: false },
+          complex: { token_limit: 2000, use_router: false }
+        },
+        mode_switching: {
+          auto_switch: true,
+          confidence_threshold: 0.7,
+          switch_delay_ms: 1000
         }
       }
-    }
-
-    return result;
+    };
   }
 
-  validatePythonConfig(config) {
-    const result = { valid: true, errors: [], warnings: [] };
-
-    if (!config.python_executable) {
-      result.errors.push('python_executable이 필요합니다.');
-      result.valid = false;
-    }
-
-    if (config.timeout && (typeof config.timeout !== 'number' || config.timeout <= 0)) {
-      result.errors.push('timeout은 양수여야 합니다.');
-      result.valid = false;
-    }
-
-    if (config.max_memory_mb && (typeof config.max_memory_mb !== 'number' || config.max_memory_mb <= 0)) {
-      result.errors.push('max_memory_mb는 양수여야 합니다.');
-      result.valid = false;
-    }
-
-    if (!config.required_packages || !Array.isArray(config.required_packages)) {
-      result.warnings.push('required_packages가 배열이 아닙니다.');
-    }
-
-    return result;
-  }
-
-  validateModelsConfig(config) {
-    const result = { valid: true, errors: [], warnings: [] };
-
-    const requiredModels = ['router', 'processor'];
-    
-    for (const modelName of requiredModels) {
-      if (!config[modelName]) {
-        result.errors.push(`${modelName} 모델 설정이 없습니다.`);
-        result.valid = false;
-        continue;
-      }
-
-      const model = config[modelName];
+  async createMissingConfigFiles() {
+    for (const [filename, defaultConfig] of Object.entries(this.defaultConfigs)) {
+      const filePath = path.join(this.configDir, filename);
       
-      if (!model.model) {
-        result.errors.push(`${modelName}: model 이름이 필요합니다.`);
-        result.valid = false;
-      }
-
-      if (!model.endpoint) {
-        result.errors.push(`${modelName}: endpoint가 필요합니다.`);
-        result.valid = false;
-      }
-
-      if (model.temperature && (model.temperature < 0 || model.temperature > 2)) {
-        result.warnings.push(`${modelName}: temperature는 0-2 사이를 권장합니다.`);
+      try {
+        await fs.access(filePath);
+        this.logger.debug(`설정 파일 존재: ${filename}`);
+      } catch (error) {
+        // 파일이 없으면 생성
+        await this.createConfigFile(filename, defaultConfig);
       }
     }
-
-    return result;
   }
 
-  validateGenericConfig(config) {
-    const result = { valid: true, errors: [], warnings: [] };
-
-    if (!config || typeof config !== 'object') {
-      result.valid = false;
-      result.errors.push('설정은 객체여야 합니다.');
+  async createConfigFile(filename, config) {
+    try {
+      const filePath = path.join(this.configDir, filename);
+      const configJson = JSON.stringify(config, null, 2);
+      
+      await fs.writeFile(filePath, configJson, 'utf-8');
+      this.logger.info(`기본 설정 파일 생성: ${filename}`);
+    } catch (error) {
+      this.logger.error(`설정 파일 생성 실패 [${filename}]:`, error);
+      throw error;
     }
-
-    return result;
   }
 
-  mergeWithDefaults(filename, config) {
-    const defaultConfig = this.getDefaultConfig(filename);
-    return this.deepMerge(defaultConfig, config);
+  async loadAllConfigs() {
+    const configFiles = Object.keys(this.defaultConfigs);
+    
+    for (const filename of configFiles) {
+      try {
+        await this.loadConfig(filename);
+      } catch (error) {
+        this.logger.warn(`설정 파일 로드 실패 [${filename}]:`, error);
+        // 기본 설정 사용
+        const configName = filename.replace('.json', '');
+        this.configCache.set(configName, this.defaultConfigs[filename]);
+      }
+    }
+  }
+
+  async loadConfig(filename) {
+    try {
+      const filePath = path.join(this.configDir, filename);
+      const configData = await fs.readFile(filePath, 'utf-8');
+      const config = JSON.parse(configData);
+      
+      const configName = filename.replace('.json', '');
+      this.configCache.set(configName, config);
+      
+      this.logger.debug(`설정 로드 완료: ${configName}`);
+      return config;
+    } catch (error) {
+      this.logger.error(`설정 로드 실패 [${filename}]:`, error);
+      throw error;
+    }
+  }
+
+  getConfig(configName) {
+    if (this.configCache.has(configName)) {
+      return this.configCache.get(configName);
+    }
+    
+    this.logger.warn(`설정을 찾을 수 없음: ${configName}`);
+    return null;
+  }
+
+  getConfigValue(configName, keyPath, defaultValue = null) {
+    const config = this.getConfig(configName);
+    if (!config) return defaultValue;
+    
+    const keys = keyPath.split('.');
+    let current = config;
+    
+    for (const key of keys) {
+      if (current && typeof current === 'object' && key in current) {
+        current = current[key];
+      } else {
+        return defaultValue;
+      }
+    }
+    
+    return current;
+  }
+
+  async updateConfig(configName, updates) {
+    try {
+      const currentConfig = this.getConfig(configName) || {};
+      const updatedConfig = this.deepMerge(currentConfig, updates);
+      
+      // 캐시 업데이트
+      this.configCache.set(configName, updatedConfig);
+      
+      // 파일 업데이트
+      const filename = `${configName}.json`;
+      const filePath = path.join(this.configDir, filename);
+      const configJson = JSON.stringify(updatedConfig, null, 2);
+      
+      await fs.writeFile(filePath, configJson, 'utf-8');
+      
+      this.logger.info(`설정 업데이트 완료: ${configName}`);
+      return updatedConfig;
+    } catch (error) {
+      this.logger.error(`설정 업데이트 실패 [${configName}]:`, error);
+      throw error;
+    }
   }
 
   deepMerge(target, source) {
     const result = { ...target };
-
+    
     for (const key in source) {
-      if (source.hasOwnProperty(key)) {
-        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
-          result[key] = this.deepMerge(target[key] || {}, source[key]);
-        } else {
-          result[key] = source[key];
-        }
+      if (source[key] !== null && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+        result[key] = this.deepMerge(result[key] || {}, source[key]);
+      } else {
+        result[key] = source[key];
       }
     }
-
+    
     return result;
   }
 
-  async watchConfigFile(filename, filePath) {
+  async reloadConfig(configName) {
     try {
-      const watcher = fs.watch(filePath, { encoding: 'utf8' }, async (eventType) => {
-        if (eventType === 'change') {
-          this.logger.info(`설정 파일 변경 감지: ${filename}`);
-          
-          // 캐시 무효화
-          this.cache.delete(filename);
-          
-          // 설정 다시 로드
-          try {
-            await this.loadConfig(filename, { useCache: false, watch: false });
-            this.logger.info(`설정 파일 다시 로드 완료: ${filename}`);
-          } catch (error) {
-            this.logger.error(`설정 파일 다시 로드 실패: ${filename}`, error);
-          }
-        }
-      });
-
-      this.watchedFiles.set(filename, watcher);
-      this.logger.debug(`파일 감시 시작: ${filename}`);
-
+      const filename = `${configName}.json`;
+      await this.loadConfig(filename);
+      this.logger.info(`설정 재로드 완료: ${configName}`);
     } catch (error) {
-      this.logger.warn(`파일 감시 설정 실패: ${filename}`, error);
-    }
-  }
-
-  async saveConfig(filename, config, options = {}) {
-    const {
-      backup = true,
-      validate = true,
-      updateCache = true
-    } = options;
-
-    try {
-      const filePath = path.join(this.configDir, filename);
-      
-      // 설정 검증
-      if (validate) {
-        const validationResult = this.validateConfig(filename, config);
-        if (!validationResult.valid) {
-          throw new Error(`설정 검증 실패: ${validationResult.errors.join(', ')}`);
-        }
-      }
-
-      // 백업 생성
-      if (backup) {
-        await this.createBackup(filename);
-      }
-
-      // 디렉토리 생성
-      await fs.mkdir(this.configDir, { recursive: true });
-
-      // 파일 쓰기
-      const configJson = JSON.stringify(config, null, 2);
-      await fs.writeFile(filePath, configJson, 'utf-8');
-
-      // 캐시 업데이트
-      if (updateCache) {
-        this.cache.set(filename, config);
-      }
-
-      this.logger.info(`설정 저장 완료: ${filename}`);
-      return true;
-
-    } catch (error) {
-      this.logger.error(`설정 저장 실패: ${filename}`, error);
+      this.logger.error(`설정 재로드 실패 [${configName}]:`, error);
       throw error;
     }
   }
 
-  async createBackup(filename) {
+  async reloadAllConfigs() {
     try {
-      const filePath = path.join(this.configDir, filename);
-      const backupDir = path.join(this.configDir, 'backups');
-      
-      // 백업 디렉토리 생성
-      await fs.mkdir(backupDir, { recursive: true });
-
-      // 파일 존재 여부 확인
-      try {
-        await fs.access(filePath);
-      } catch {
-        // 파일이 없으면 백업 불필요
-        return;
-      }
-
-      // 백업 파일명 생성
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupFilename = `${filename}.${timestamp}.bak`;
-      const backupPath = path.join(backupDir, backupFilename);
-
-      // 파일 복사
-      await fs.copyFile(filePath, backupPath);
-      
-      this.logger.debug(`백업 생성 완료: ${backupFilename}`);
-
-      // 오래된 백업 정리 (최근 10개만 유지)
-      await this.cleanupOldBackups(filename, backupDir);
-
+      this.configCache.clear();
+      await this.loadAllConfigs();
+      this.logger.info('모든 설정 재로드 완료');
     } catch (error) {
-      this.logger.warn(`백업 생성 실패: ${filename}`, error);
-    }
-  }
-
-  async cleanupOldBackups(filename, backupDir) {
-    try {
-      const files = await fs.readdir(backupDir);
-      const backupFiles = files
-        .filter(file => file.startsWith(filename) && file.endsWith('.bak'))
-        .map(file => ({
-          name: file,
-          path: path.join(backupDir, file)
-        }))
-        .sort((a, b) => b.name.localeCompare(a.name)); // 최신 순 정렬
-
-      // 10개 초과 시 오래된 것들 삭제
-      if (backupFiles.length > 10) {
-        const filesToDelete = backupFiles.slice(10);
-        for (const file of filesToDelete) {
-          await fs.unlink(file.path);
-          this.logger.debug(`오래된 백업 삭제: ${file.name}`);
-        }
-      }
-
-    } catch (error) {
-      this.logger.warn('백업 정리 실패:', error);
-    }
-  }
-
-  async listConfigs() {
-    try {
-      const files = await fs.readdir(this.configDir);
-      const configFiles = files.filter(file => file.endsWith('.json'));
-      
-      const configs = [];
-      for (const file of configFiles) {
-        try {
-          const filePath = path.join(this.configDir, file);
-          const stats = await fs.stat(filePath);
-          
-          configs.push({
-            filename: file,
-            size: stats.size,
-            modified: stats.mtime,
-            cached: this.cache.has(file),
-            watched: this.watchedFiles.has(file)
-          });
-        } catch (error) {
-          this.logger.warn(`파일 정보 조회 실패: ${file}`, error);
-        }
-      }
-      
-      return configs;
-
-    } catch (error) {
-      this.logger.error('설정 목록 조회 실패:', error);
-      return [];
-    }
-  }
-
-  clearCache(filename = null) {
-    if (filename) {
-      this.cache.delete(filename);
-      this.logger.debug(`캐시 삭제: ${filename}`);
-    } else {
-      this.cache.clear();
-      this.logger.debug('전체 캐시 삭제');
-    }
-  }
-
-  stopWatching(filename = null) {
-    if (filename) {
-      const watcher = this.watchedFiles.get(filename);
-      if (watcher) {
-        watcher.close();
-        this.watchedFiles.delete(filename);
-        this.logger.debug(`파일 감시 중지: ${filename}`);
-      }
-    } else {
-      for (const [file, watcher] of this.watchedFiles) {
-        watcher.close();
-        this.logger.debug(`파일 감시 중지: ${file}`);
-      }
-      this.watchedFiles.clear();
-    }
-  }
-
-  enableAutoWatch() {
-    this.enableWatch = true;
-    this.logger.info('자동 파일 감시 활성화');
-  }
-
-  disableAutoWatch() {
-    this.enableWatch = false;
-    this.stopWatching();
-    this.logger.info('자동 파일 감시 비활성화');
-  }
-
-  getCacheStats() {
-    return {
-      cached_configs: this.cache.size,
-      watched_files: this.watchedFiles.size,
-      cache_enabled: this.enableCache,
-      watch_enabled: this.enableWatch,
-      cached_files: Array.from(this.cache.keys()),
-      watched_files_list: Array.from(this.watchedFiles.keys())
-    };
-  }
-
-  async initializeConfigDirectory() {
-    try {
-      // config 디렉토리 생성
-      await fs.mkdir(this.configDir, { recursive: true });
-      
-      // 기본 설정 파일들 생성 (존재하지 않는 경우만)
-      for (const [filename, defaultConfig] of this.defaultConfigs) {
-        const filePath = path.join(this.configDir, filename);
-        
-        try {
-          await fs.access(filePath);
-          this.logger.debug(`설정 파일 이미 존재: ${filename}`);
-        } catch {
-          // 파일이 없으면 기본 설정으로 생성
-          await this.saveConfig(filename, defaultConfig, { 
-            backup: false, 
-            validate: false 
-          });
-          this.logger.info(`기본 설정 파일 생성: ${filename}`);
-        }
-      }
-
-      return true;
-
-    } catch (error) {
-      this.logger.error('설정 디렉토리 초기화 실패:', error);
+      this.logger.error('설정 재로드 실패:', error);
       throw error;
     }
   }
 
-  // 설정 템플릿 생성
-  async createConfigTemplate(templateName, description = '') {
-    const templates = {
-      'custom-analysis.json': {
-        name: '사용자 정의 분석',
-        description: description || '사용자가 정의한 분석 방법',
-        methods: {
-          custom_method: {
-            name: '사용자 정의 방법',
-            description: '설명을 입력하세요',
-            python_script: 'python/custom/custom_method.py',
-            parameters: {
-              param1: {
-                type: 'string',
-                default: 'default_value',
-                description: '파라미터 설명'
-              }
-            },
-            output_format: ['result'],
-            complexity: 0.5,
-            estimated_time_ms: 5000
-          }
-        }
-      },
-      'custom-workflow.json': {
-        name: '사용자 정의 워크플로우',
-        description: description || '사용자가 정의한 워크플로우',
-        category: 'custom',
-        complexity: 0.5,
-        estimated_time: 300,
-        steps: [
-          {
-            order: 1,
-            type: 'data',
-            method: 'load',
-            description: '데이터 로드',
-            params: {},
-            outputs: ['data'],
-            required: true
-          }
-        ]
-      }
-    };
+  getAvailableConfigs() {
+    return Array.from(this.configCache.keys());
+  }
 
-    if (templates[templateName]) {
-      await this.saveConfig(templateName, templates[templateName]);
-      this.logger.info(`설정 템플릿 생성: ${templateName}`);
-      return templates[templateName];
-    } else {
-      throw new Error(`알 수 없는 템플릿: ${templateName}`);
+  async validateConfig(configName) {
+    const config = this.getConfig(configName);
+    if (!config) {
+      return { valid: false, errors: [`설정을 찾을 수 없음: ${configName}`] };
     }
+
+    const validation = { valid: true, errors: [], warnings: [] };
+
+    // 설정별 검증 로직
+    switch (configName) {
+      case 'models-config':
+        this.validateModelsConfig(config, validation);
+        break;
+      case 'python-config':
+        this.validatePythonConfig(config, validation);
+        break;
+      case 'analysis-methods':
+        this.validateAnalysisConfig(config, validation);
+        break;
+    }
+
+    return validation;
+  }
+
+  validateModelsConfig(config, validation) {
+    ['router', 'processor'].forEach(modelType => {
+      if (!config[modelType]) {
+        validation.errors.push(`${modelType} 모델 설정 누락`);
+        validation.valid = false;
+      } else {
+        const model = config[modelType];
+        if (!model.name) {
+          validation.errors.push(`${modelType} 모델 이름 누락`);
+          validation.valid = false;
+        }
+        if (!model.endpoint) {
+          validation.errors.push(`${modelType} 모델 엔드포인트 누락`);
+          validation.valid = false;
+        }
+      }
+    });
+  }
+
+  validatePythonConfig(config, validation) {
+    if (!config.environment) {
+      validation.errors.push('Python 환경 설정 누락');
+      validation.valid = false;
+    }
+    
+    if (!config.packages || !config.packages.required) {
+      validation.errors.push('필수 Python 패키지 목록 누락');
+      validation.valid = false;
+    }
+  }
+
+  validateAnalysisConfig(config, validation) {
+    if (!config.basic) {
+      validation.warnings.push('기본 분석 방법 설정 누락');
+    }
+    
+    if (!config.advanced) {
+      validation.warnings.push('고급 분석 방법 설정 누락');
+    }
+  }
+
+  async exportConfig(configName, format = 'json') {
+    const config = this.getConfig(configName);
+    if (!config) {
+      throw new Error(`설정을 찾을 수 없음: ${configName}`);
+    }
+
+    switch (format) {
+      case 'json':
+        return JSON.stringify(config, null, 2);
+      case 'yaml':
+        // 간단한 YAML 변환 (실제로는 yaml 라이브러리 사용 권장)
+        return this.convertToYAML(config);
+      default:
+        throw new Error(`지원하지 않는 형식: ${format}`);
+    }
+  }
+
+  convertToYAML(obj, indent = 0) {
+    let yaml = '';
+    const spaces = '  '.repeat(indent);
+    
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        yaml += `${spaces}${key}:\n`;
+        yaml += this.convertToYAML(value, indent + 1);
+      } else if (Array.isArray(value)) {
+        yaml += `${spaces}${key}:\n`;
+        value.forEach(item => {
+          yaml += `${spaces}  - ${item}\n`;
+        });
+      } else {
+        yaml += `${spaces}${key}: ${value}\n`;
+      }
+    }
+    
+    return yaml;
   }
 }
