@@ -1,69 +1,91 @@
-// tools/analysis/advanced-analyzer.js - 고급 분석 인터페이스
-import { Logger } from '../../utils/logger.js';
+// tools/analysis/advanced-analyzer.js - 고급 분석 도구
 import { PythonExecutor } from '../common/python-executor.js';
 import { ResultFormatter } from '../common/result-formatter.js';
+import { Logger } from '../../utils/logger.js';
+import { ConfigLoader } from '../../utils/config-loader.js';
 
 export class AdvancedAnalyzer {
   constructor() {
-    this.logger = new Logger();
     this.pythonExecutor = new PythonExecutor();
     this.resultFormatter = new ResultFormatter();
-    this.analysisHistory = [];
-    this.supportedAnalysisTypes = {
-      dimensionality_reduction: ['pca', 'tsne', 'umap', 'factor_analysis'],
-      clustering: ['kmeans', 'hierarchical', 'dbscan', 'gaussian_mixture'],
-      outlier_detection: ['isolation_forest', 'local_outlier_factor', 'one_class_svm', 'elliptic_envelope'],
-      feature_engineering: ['feature_selection', 'feature_scaling', 'feature_creation', 'encoding'],
-      timeseries: ['trend_analysis', 'seasonality', 'forecasting', 'anomaly_detection'],
-      statistical_tests: ['normality', 'stationarity', 'correlation', 'hypothesis_testing']
-    };
+    this.logger = new Logger();
+    this.configLoader = new ConfigLoader();
+    this.analysisConfig = null;
+    
+    this.initializeAnalyzer();
   }
 
-  async initialize() {
+  async initializeAnalyzer() {
     try {
-      await this.pythonExecutor.initialize();
+      this.analysisConfig = await this.configLoader.loadConfig('analysis-methods.json');
       this.logger.info('AdvancedAnalyzer 초기화 완료');
     } catch (error) {
       this.logger.error('AdvancedAnalyzer 초기화 실패:', error);
-      throw error;
+      this.analysisConfig = this.getDefaultConfig();
     }
   }
 
+  getDefaultConfig() {
+    return {
+      advanced: {
+        pca: {
+          complexity: 0.6,
+          estimated_time_ms: 5000,
+          python_script: 'python/analysis/advanced/pca.py'
+        },
+        clustering: {
+          complexity: 0.7,
+          estimated_time_ms: 8000,
+          python_script: 'python/analysis/advanced/clustering.py'
+        },
+        outlier_detection: {
+          complexity: 0.5,
+          estimated_time_ms: 4000,
+          python_script: 'python/analysis/advanced/outlier_detection.py'
+        },
+        feature_engineering: {
+          complexity: 0.6,
+          estimated_time_ms: 6000,
+          python_script: 'python/analysis/advanced/feature_engineering.py'
+        }
+      }
+    };
+  }
+
   async performPCA(data, options = {}) {
+    const {
+      n_components = 2,
+      standardize = true,
+      variance_threshold = 0.95,
+      plot_results = true,
+      include_loadings = true
+    } = options;
+
     try {
       this.logger.info('PCA 분석 시작');
 
-      const {
-        n_components = 'auto',
-        standardize = true,
-        target_variance = 0.95,
-        visualize = true,
-        feature_names = null
-      } = options;
+      const config = this.getAnalysisConfig('pca');
+      const scriptPath = config.python_script || 'python/analysis/advanced/pca.py';
 
-      const scriptPath = 'python/analysis/advanced/pca.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
         n_components,
         standardize,
-        target_variance,
-        visualize,
-        feature_names
+        variance_threshold,
+        plot_results,
+        include_loadings
       };
 
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 180000
-      });
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
 
       if (result.success) {
-        const pcaResult = JSON.parse(result.output);
-        this.recordAnalysisHistory('pca', options, pcaResult);
-        return this.resultFormatter.formatAnalysisResult(pcaResult, 'pca_analysis');
+        const analysisResult = JSON.parse(result.output);
+        return this.resultFormatter.formatAnalysisResult(analysisResult, 'advanced_analysis');
       } else {
-        throw new Error(`PCA 분석 실패: ${result.error}`);
+        throw new Error(result.error);
       }
+
     } catch (error) {
       this.logger.error('PCA 분석 실패:', error);
       throw error;
@@ -71,42 +93,45 @@ export class AdvancedAnalyzer {
   }
 
   async performClustering(data, options = {}) {
+    const {
+      algorithm = 'kmeans',
+      n_clusters = 3,
+      auto_optimize = true,
+      max_clusters = 10,
+      random_state = 42,
+      plot_results = true,
+      eps = 0.5,
+      min_samples = 5
+    } = options;
+
     try {
-      this.logger.info('클러스터링 분석 시작');
+      this.logger.info(`클러스터링 분석 시작: ${algorithm}`);
 
-      const {
-        algorithm = 'kmeans',
-        n_clusters = 'auto',
-        features = null,
-        preprocessing = true,
-        evaluation = true,
-        visualize = true
-      } = options;
+      const config = this.getAnalysisConfig('clustering');
+      const scriptPath = config.python_script || 'python/analysis/advanced/clustering.py';
 
-      const scriptPath = 'python/analysis/advanced/clustering.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
         algorithm,
         n_clusters,
-        features,
-        preprocessing,
-        evaluation,
-        visualize
+        auto_optimize,
+        max_clusters,
+        random_state,
+        plot_results,
+        eps,
+        min_samples
       };
 
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 300000
-      });
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
 
       if (result.success) {
-        const clusteringResult = JSON.parse(result.output);
-        this.recordAnalysisHistory('clustering', options, clusteringResult);
-        return this.resultFormatter.formatAnalysisResult(clusteringResult, 'clustering_analysis');
+        const analysisResult = JSON.parse(result.output);
+        return this.resultFormatter.formatAnalysisResult(analysisResult, 'advanced_analysis');
       } else {
-        throw new Error(`클러스터링 분석 실패: ${result.error}`);
+        throw new Error(result.error);
       }
+
     } catch (error) {
       this.logger.error('클러스터링 분석 실패:', error);
       throw error;
@@ -114,40 +139,39 @@ export class AdvancedAnalyzer {
   }
 
   async detectOutliers(data, options = {}) {
+    const {
+      method = 'iqr',
+      threshold = 1.5,
+      contamination = 0.1,
+      plot_results = true,
+      return_clean_data = true
+    } = options;
+
     try {
-      this.logger.info('이상치 탐지 시작');
+      this.logger.info(`이상치 탐지 시작: ${method}`);
 
-      const {
-        method = 'isolation_forest',
-        contamination = 'auto',
-        features = null,
-        visualize = true,
-        return_scores = true
-      } = options;
+      const config = this.getAnalysisConfig('outlier_detection');
+      const scriptPath = config.python_script || 'python/analysis/advanced/outlier_detection.py';
 
-      const scriptPath = 'python/analysis/advanced/outlier_detection.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
         method,
+        threshold,
         contamination,
-        features,
-        visualize,
-        return_scores
+        plot_results,
+        return_clean_data
       };
 
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 180000
-      });
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
 
       if (result.success) {
-        const outlierResult = JSON.parse(result.output);
-        this.recordAnalysisHistory('outlier_detection', options, outlierResult);
-        return this.resultFormatter.formatAnalysisResult(outlierResult, 'outlier_detection');
+        const analysisResult = JSON.parse(result.output);
+        return this.resultFormatter.formatAnalysisResult(analysisResult, 'advanced_analysis');
       } else {
-        throw new Error(`이상치 탐지 실패: ${result.error}`);
+        throw new Error(result.error);
       }
+
     } catch (error) {
       this.logger.error('이상치 탐지 실패:', error);
       throw error;
@@ -155,381 +179,286 @@ export class AdvancedAnalyzer {
   }
 
   async performFeatureEngineering(data, options = {}) {
+    const {
+      operations = ['scaling', 'encoding'],
+      scaling_method = 'standard',
+      encoding_method = 'onehot',
+      polynomial_degree = 2,
+      interaction_features = false,
+      target_column = null,
+      remove_low_variance = true,
+      variance_threshold = 0.01,
+      correlation_threshold = 0.95
+    } = options;
+
     try {
       this.logger.info('피처 엔지니어링 시작');
 
-      const {
-        operations = ['selection', 'scaling', 'encoding'],
-        target_column = null,
-        selection_method = 'variance_threshold',
-        scaling_method = 'standard',
-        encoding_method = 'label',
-        create_features = false
-      } = options;
+      const config = this.getAnalysisConfig('feature_engineering');
+      const scriptPath = config.python_script || 'python/analysis/advanced/feature_engineering.py';
 
-      const scriptPath = 'python/analysis/advanced/feature_engineering.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        operations,
-        target_column,
-        selection_method,
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        operations: operations.join(','),
         scaling_method,
         encoding_method,
-        create_features
+        polynomial_degree,
+        interaction_features,
+        target_column,
+        remove_low_variance,
+        variance_threshold,
+        correlation_threshold
       };
 
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 240000
-      });
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
 
       if (result.success) {
-        const featureResult = JSON.parse(result.output);
-        this.recordAnalysisHistory('feature_engineering', options, featureResult);
-        return this.resultFormatter.formatAnalysisResult(featureResult, 'feature_engineering');
+        const analysisResult = JSON.parse(result.output);
+        return this.resultFormatter.formatAnalysisResult(analysisResult, 'advanced_analysis');
       } else {
-        throw new Error(`피처 엔지니어링 실패: ${result.error}`);
+        throw new Error(result.error);
       }
+
     } catch (error) {
       this.logger.error('피처 엔지니어링 실패:', error);
       throw error;
     }
   }
 
-  async analyzeTimeSeries(data, options = {}) {
-    try {
-      this.logger.info('시계열 분석 시작');
-
-      const {
-        time_column = null,
-        value_column = null,
-        analysis_type = 'comprehensive',
-        decomposition = true,
-        stationarity_test = true,
-        forecasting = false,
-        forecast_periods = 30
-      } = options;
-
-      const scriptPath = 'python/analysis/timeseries/trend_analysis.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        time_column,
-        value_column,
-        analysis_type,
-        decomposition,
-        stationarity_test,
-        forecasting,
-        forecast_periods
-      };
-
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 300000
-      });
-
-      if (result.success) {
-        const timeseriesResult = JSON.parse(result.output);
-        this.recordAnalysisHistory('timeseries', options, timeseriesResult);
-        return this.resultFormatter.formatAnalysisResult(timeseriesResult, 'timeseries_analysis');
-      } else {
-        throw new Error(`시계열 분석 실패: ${result.error}`);
-      }
-    } catch (error) {
-      this.logger.error('시계열 분석 실패:', error);
-      throw error;
-    }
-  }
-
-  async performSeasonalityAnalysis(data, options = {}) {
-    try {
-      this.logger.info('계절성 분석 시작');
-
-      const {
-        time_column = null,
-        value_column = null,
-        seasonal_periods = ['yearly', 'monthly', 'weekly'],
-        decomposition_model = 'additive',
-        visualize = true
-      } = options;
-
-      const scriptPath = 'python/analysis/timeseries/seasonality.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        time_column,
-        value_column,
-        seasonal_periods,
-        decomposition_model,
-        visualize
-      };
-
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 240000
-      });
-
-      if (result.success) {
-        const seasonalityResult = JSON.parse(result.output);
-        this.recordAnalysisHistory('seasonality', options, seasonalityResult);
-        return this.resultFormatter.formatAnalysisResult(seasonalityResult, 'seasonality_analysis');
-      } else {
-        throw new Error(`계절성 분석 실패: ${result.error}`);
-      }
-    } catch (error) {
-      this.logger.error('계절성 분석 실패:', error);
-      throw error;
-    }
-  }
-
-  async forecastTimeSeries(data, options = {}) {
-    try {
-      this.logger.info('시계열 예측 시작');
-
-      const {
-        time_column = null,
-        value_column = null,
-        forecast_periods = 30,
-        model_type = 'auto',
-        confidence_intervals = true,
-        seasonal = true,
-        exogenous_vars = null
-      } = options;
-
-      const scriptPath = 'python/analysis/timeseries/forecasting.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        time_column,
-        value_column,
-        forecast_periods,
-        model_type,
-        confidence_intervals,
-        seasonal,
-        exogenous_vars
-      };
-
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 600000 // 10분
-      });
-
-      if (result.success) {
-        const forecastResult = JSON.parse(result.output);
-        this.recordAnalysisHistory('forecasting', options, forecastResult);
-        return this.resultFormatter.formatAnalysisResult(forecastResult, 'timeseries_forecast');
-      } else {
-        throw new Error(`시계열 예측 실패: ${result.error}`);
-      }
-    } catch (error) {
-      this.logger.error('시계열 예측 실패:', error);
-      throw error;
-    }
-  }
-
-  async performStatisticalTests(data, options = {}) {
-    try {
-      this.logger.info('통계 검정 시작');
-
-      const {
-        test_types = ['normality', 'correlation', 'independence'],
-        columns = null,
-        significance_level = 0.05,
-        multiple_testing_correction = true
-      } = options;
-
-      const scriptPath = 'python/analysis/statistical/hypothesis_tests.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        test_types,
-        columns,
-        significance_level,
-        multiple_testing_correction
-      };
-
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 180000
-      });
-
-      if (result.success) {
-        const testResult = JSON.parse(result.output);
-        this.recordAnalysisHistory('statistical_tests', options, testResult);
-        return this.resultFormatter.formatAnalysisResult(testResult, 'statistical_tests');
-      } else {
-        throw new Error(`통계 검정 실패: ${result.error}`);
-      }
-    } catch (error) {
-      this.logger.error('통계 검정 실패:', error);
-      throw error;
-    }
-  }
-
   async performDimensionalityReduction(data, options = {}) {
+    const {
+      method = 'pca',
+      n_components = 2,
+      perplexity = 30,
+      n_neighbors = 15,
+      min_dist = 0.1,
+      random_state = 42,
+      plot_results = true
+    } = options;
+
     try {
-      this.logger.info('차원 축소 시작');
+      this.logger.info(`차원 축소 분석 시작: ${method}`);
 
-      const {
-        method = 'pca',
-        n_components = 2,
-        standardize = true,
-        visualize = true,
-        return_transformed_data = true
-      } = options;
+      const config = this.getAnalysisConfig('pca'); // PCA 스크립트 재사용 또는 별도 스크립트
+      let scriptPath;
 
-      const scriptPath = 'python/analysis/advanced/dimensionality_reduction.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
+      switch (method) {
+        case 'pca':
+          scriptPath = config.python_script || 'python/analysis/advanced/pca.py';
+          break;
+        case 'tsne':
+          scriptPath = 'python/analysis/advanced/tsne.py';
+          break;
+        case 'umap':
+          scriptPath = 'python/analysis/advanced/umap.py';
+          break;
+        default:
+          scriptPath = config.python_script || 'python/analysis/advanced/pca.py';
+      }
+
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
         method,
         n_components,
-        standardize,
-        visualize,
-        return_transformed_data
+        perplexity,
+        n_neighbors,
+        min_dist,
+        random_state,
+        plot_results
       };
 
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 300000
-      });
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
 
       if (result.success) {
-        const reductionResult = JSON.parse(result.output);
-        this.recordAnalysisHistory('dimensionality_reduction', options, reductionResult);
-        return this.resultFormatter.formatAnalysisResult(reductionResult, 'dimensionality_reduction');
+        const analysisResult = JSON.parse(result.output);
+        return this.resultFormatter.formatAnalysisResult(analysisResult, 'advanced_analysis');
       } else {
-        throw new Error(`차원 축소 실패: ${result.error}`);
+        throw new Error(result.error);
       }
+
     } catch (error) {
-      this.logger.error('차원 축소 실패:', error);
+      this.logger.error('차원 축소 분석 실패:', error);
       throw error;
     }
   }
 
-  async analyzeAssociations(data, options = {}) {
+  async comprehensiveAdvancedAnalysis(data, options = {}) {
+    const {
+      include_pca = true,
+      include_clustering = true,
+      include_outlier_detection = true,
+      include_feature_engineering = false,
+      generate_summary = true
+    } = options;
+
     try {
-      this.logger.info('연관성 분석 시작');
+      this.logger.info('종합 고급 분석 시작');
 
-      const {
-        min_support = 0.1,
-        min_confidence = 0.5,
-        min_lift = 1.0,
-        max_length = 5,
-        transaction_column = null
-      } = options;
-
-      const scriptPath = 'python/analysis/advanced/association_rules.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        min_support,
-        min_confidence,
-        min_lift,
-        max_length,
-        transaction_column
+      const results = {
+        analysis_type: 'comprehensive_advanced',
+        timestamp: new Date().toISOString(),
+        results: {},
+        execution_info: {
+          started_at: new Date().toISOString(),
+          analyses_requested: []
+        }
       };
 
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 240000
-      });
+      // 요청된 분석 목록 기록
+      if (include_pca) results.execution_info.analyses_requested.push('pca');
+      if (include_clustering) results.execution_info.analyses_requested.push('clustering');
+      if (include_outlier_detection) results.execution_info.analyses_requested.push('outlier_detection');
+      if (include_feature_engineering) results.execution_info.analyses_requested.push('feature_engineering');
 
-      if (result.success) {
-        const associationResult = JSON.parse(result.output);
-        this.recordAnalysisHistory('association_analysis', options, associationResult);
-        return this.resultFormatter.formatAnalysisResult(associationResult, 'association_analysis');
-      } else {
-        throw new Error(`연관성 분석 실패: ${result.error}`);
+      // PCA 분석
+      if (include_pca) {
+        try {
+          this.logger.info('PCA 분석 실행 중...');
+          results.results.pca = await this.performPCA(data, options);
+        } catch (error) {
+          this.logger.warn('PCA 분석 실패:', error);
+          results.results.pca = { 
+            error: true, 
+            message: error.message,
+            analysis_type: 'pca'
+          };
+        }
       }
+
+      // 클러스터링 분석
+      if (include_clustering) {
+        try {
+          this.logger.info('클러스터링 분석 실행 중...');
+          results.results.clustering = await this.performClustering(data, options);
+        } catch (error) {
+          this.logger.warn('클러스터링 분석 실패:', error);
+          results.results.clustering = { 
+            error: true, 
+            message: error.message,
+            analysis_type: 'clustering'
+          };
+        }
+      }
+
+      // 이상치 탐지
+      if (include_outlier_detection) {
+        try {
+          this.logger.info('이상치 탐지 실행 중...');
+          results.results.outlier_detection = await this.detectOutliers(data, options);
+        } catch (error) {
+          this.logger.warn('이상치 탐지 실패:', error);
+          results.results.outlier_detection = { 
+            error: true, 
+            message: error.message,
+            analysis_type: 'outlier_detection'
+          };
+        }
+      }
+
+      // 피처 엔지니어링
+      if (include_feature_engineering) {
+        try {
+          this.logger.info('피처 엔지니어링 실행 중...');
+          results.results.feature_engineering = await this.performFeatureEngineering(data, options);
+        } catch (error) {
+          this.logger.warn('피처 엔지니어링 실패:', error);
+          results.results.feature_engineering = { 
+            error: true, 
+            message: error.message,
+            analysis_type: 'feature_engineering'
+          };
+        }
+      }
+
+      // 실행 시간 기록
+      results.execution_info.completed_at = new Date().toISOString();
+      results.execution_info.total_duration_ms = Date.now() - new Date(results.execution_info.started_at).getTime();
+
+      // 요약 생성
+      if (generate_summary) {
+        results.summary = this.generateAdvancedAnalysisSummary(results.results);
+      }
+
+      this.logger.info('종합 고급 분석 완료');
+      return this.resultFormatter.formatAnalysisResult(results, 'comprehensive_advanced_analysis');
+
     } catch (error) {
-      this.logger.error('연관성 분석 실패:', error);
+      this.logger.error('종합 고급 분석 실패:', error);
       throw error;
     }
   }
 
-  recordAnalysisHistory(analysisType, options, result) {
-    const record = {
-      timestamp: new Date().toISOString(),
-      analysis_type: analysisType,
-      options,
-      success: !result.error,
-      execution_time: result.execution_time || null
+  generateAdvancedAnalysisSummary(analysisResults) {
+    const summary = {
+      successful_analyses: [],
+      failed_analyses: [],
+      key_insights: [],
+      recommendations: []
     };
 
-    this.analysisHistory.push(record);
+    // 성공/실패 분석 분류
+    Object.entries(analysisResults).forEach(([analysisType, result]) => {
+      if (result.error) {
+        summary.failed_analyses.push(analysisType);
+      } else {
+        summary.successful_analyses.push(analysisType);
+        
+        // 주요 인사이트 추출
+        if (result.metadata?.summary) {
+          summary.key_insights.push(`${analysisType}: ${result.metadata.summary}`);
+        }
+      }
+    });
+
+    // 권장사항 생성
+    if (summary.successful_analyses.includes('pca')) {
+      summary.recommendations.push('PCA 결과를 바탕으로 차원 축소된 데이터를 활용한 추가 분석을 고려해보세요.');
+    }
+
+    if (summary.successful_analyses.includes('clustering')) {
+      summary.recommendations.push('클러스터링 결과를 바탕으로 그룹별 특성 분석을 수행해보세요.');
+    }
+
+    if (summary.successful_analyses.includes('outlier_detection')) {
+      summary.recommendations.push('탐지된 이상치를 제거하거나 별도 분석하여 데이터 품질을 개선해보세요.');
+    }
+
+    return summary;
+  }
+
+  // 분석 설정 가져오기
+  getAnalysisConfig(methodName) {
+    if (this.analysisConfig?.advanced?.[methodName]) {
+      return this.analysisConfig.advanced[methodName];
+    }
     
-    // 히스토리 크기 제한 (최대 100개)
-    if (this.analysisHistory.length > 100) {
-      this.analysisHistory = this.analysisHistory.slice(-50);
-    }
-  }
-
-  // 유틸리티 메서드들
-  getAnalysisHistory(limit = 10) {
-    return this.analysisHistory.slice(-limit);
-  }
-
-  getSupportedAnalysisTypes() {
-    return this.supportedAnalysisTypes;
-  }
-
-  getAnalysisRecommendations(dataInfo) {
-    const { numeric_columns, categorical_columns, row_count, has_datetime } = dataInfo;
-    const recommendations = [];
-
-    // 차원이 많은 경우 차원 축소 추천
-    if (numeric_columns.length > 10) {
-      recommendations.push({
-        analysis: 'dimensionality_reduction',
-        reason: '변수가 많아 차원 축소가 유용할 수 있습니다.',
-        methods: ['pca', 'tsne']
-      });
-    }
-
-    // 충분한 데이터가 있는 경우 클러스터링 추천
-    if (row_count > 100 && numeric_columns.length >= 2) {
-      recommendations.push({
-        analysis: 'clustering',
-        reason: '데이터의 패턴을 찾기 위한 클러스터링을 시도해보세요.',
-        methods: ['kmeans', 'hierarchical']
-      });
-    }
-
-    // 시계열 데이터인 경우
-    if (has_datetime) {
-      recommendations.push({
-        analysis: 'timeseries',
-        reason: '시간 정보가 있어 시계열 분석이 가능합니다.',
-        methods: ['trend_analysis', 'seasonality', 'forecasting']
-      });
-    }
-
-    // 이상치 탐지는 항상 유용
-    if (numeric_columns.length > 0) {
-      recommendations.push({
-        analysis: 'outlier_detection',
-        reason: '데이터 품질 향상을 위한 이상치 탐지를 권장합니다.',
-        methods: ['isolation_forest', 'local_outlier_factor']
-      });
-    }
-
-    return recommendations;
-  }
-
-  async getAdvancedAnalyzerStatus() {
-    return {
-      python_executor_status: await this.pythonExecutor.getExecutionStats(),
-      analysis_history_count: this.analysisHistory.length,
-      supported_analysis_types: this.supportedAnalysisTypes,
-      last_analysis: this.analysisHistory.length > 0 ? 
-        this.analysisHistory[this.analysisHistory.length - 1] : null
+    return this.getDefaultConfig().advanced[methodName] || {
+      complexity: 0.5,
+      estimated_time_ms: 5000,
+      python_script: `python/analysis/advanced/${methodName}.py`
     };
   }
 
-  async cleanup() {
-    await this.pythonExecutor.shutdown();
-    this.logger.info('AdvancedAnalyzer 정리 완료');
+  // 분석 메서드 목록 반환
+  getAvailableMethods() {
+    return {
+      pca: 'Principal Component Analysis - 주성분 분석',
+      clustering: 'Clustering Analysis - 클러스터링 분석',
+      outlier_detection: 'Outlier Detection - 이상치 탐지',
+      feature_engineering: 'Feature Engineering - 피처 엔지니어링',
+      dimensionality_reduction: 'Dimensionality Reduction - 차원 축소'
+    };
+  }
+
+  // 성능 메트릭 반환
+  getPerformanceMetrics() {
+    return {
+      total_analyses_performed: this.performanceMetrics?.get('total_analyses') || 0,
+      average_execution_time: this.performanceMetrics?.get('avg_execution_time') || 0,
+      success_rate: this.performanceMetrics?.get('success_rate') || 0,
+      most_used_method: this.performanceMetrics?.get('most_used_method') || 'unknown'
+    };
   }
 }

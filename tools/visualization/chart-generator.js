@@ -1,489 +1,732 @@
-// tools/visualization/chart-generator.js - 차트 및 시각화 생성 인터페이스
-import { Logger } from '../../utils/logger.js';
+// tools/visualization/chart-generator.js - 차트 생성 도구
 import { PythonExecutor } from '../common/python-executor.js';
 import { ResultFormatter } from '../common/result-formatter.js';
+import { Logger } from '../../utils/logger.js';
+import { ConfigLoader } from '../../utils/config-loader.js';
+import { FileManager } from '../common/file-manager.js';
 
 export class ChartGenerator {
   constructor() {
-    this.logger = new Logger();
     this.pythonExecutor = new PythonExecutor();
     this.resultFormatter = new ResultFormatter();
+    this.logger = new Logger();
+    this.configLoader = new ConfigLoader();
+    this.fileManager = new FileManager();
     this.chartHistory = [];
-    this.supportedChartTypes = {
-      basic: ['bar', 'line', 'scatter', 'pie', 'histogram', 'box', 'violin'],
-      statistical: ['correlation_heatmap', 'distribution', 'qq_plot', 'residual_plot'],
-      ml: ['confusion_matrix', 'roc_curve', 'feature_importance', 'learning_curve'],
-      advanced: ['3d_scatter', 'parallel_coordinates', 'radar_chart', 'treemap']
-    };
+    this.chartConfig = null;
+    
+    this.initializeGenerator();
   }
 
-  async initialize() {
+  async initializeGenerator() {
     try {
-      await this.pythonExecutor.initialize();
+      this.chartConfig = await this.configLoader.loadConfig('visualization-config.json');
       this.logger.info('ChartGenerator 초기화 완료');
     } catch (error) {
       this.logger.error('ChartGenerator 초기화 실패:', error);
-      throw error;
+      this.chartConfig = this.getDefaultConfig();
     }
   }
 
-  async generateChart(data, chartConfig) {
+  getDefaultConfig() {
+    return {
+      chart_types: {
+        '2d': {
+          scatter: { script: 'python/visualization/2d/scatter.py' },
+          line: { script: 'python/visualization/2d/line.py' },
+          bar: { script: 'python/visualization/2d/bar.py' },
+          histogram: { script: 'python/visualization/2d/histogram.py' },
+          boxplot: { script: 'python/visualization/2d/boxplot.py' }
+        },
+        '3d': {
+          scatter_3d: { script: 'python/visualization/3d/scatter_3d.py' },
+          surface: { script: 'python/visualization/3d/surface.py' }
+        }
+      },
+      default_style: 'seaborn',
+      output_formats: ['png', 'svg', 'html'],
+      default_dpi: 300
+    };
+  }
+
+  async createScatterPlot(data, options = {}) {
+    const {
+      x_column,
+      y_column,
+      color_column = null,
+      size_column = null,
+      title = null,
+      xlabel = null,
+      ylabel = null,
+      style = 'seaborn',
+      figsize = [10, 8],
+      alpha = 0.7,
+      marker_size = 50,
+      color_palette = 'viridis',
+      output_format = 'png'
+    } = options;
+
     try {
-      this.logger.info('차트 생성 시작', { chartType: chartConfig.chart_type });
+      this.logger.info('산점도 생성 시작');
 
-      const {
-        chart_type,
-        chart_category = 'basic',
-        x_column = null,
-        y_column = null,
-        color_column = null,
-        title = null,
-        style = 'default',
-        interactive = false,
-        save_format = 'png'
-      } = chartConfig;
-
-      // 차트 타입 검증
-      this.validateChartConfig(chartConfig);
-
-      // 적절한 Python 스크립트 선택
-      const scriptPath = this.getVisualizationScriptPath(chart_category, chart_type);
-      
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        chart_type,
-        chart_category,
-        x_column,
-        y_column,
-        color_column,
-        title,
-        style,
-        interactive,
-        save_format
-      };
-
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 180000 // 3분
-      });
-
-      if (result.success) {
-        const chartResult = JSON.parse(result.output);
-        this.recordChartHistory(chartConfig, chartResult);
-        return this.resultFormatter.formatAnalysisResult(chartResult, 'chart_generation');
-      } else {
-        throw new Error(`차트 생성 실패: ${result.error}`);
+      if (!x_column || !y_column) {
+        throw new Error('x_column과 y_column이 필요합니다.');
       }
-    } catch (error) {
-      this.logger.error('차트 생성 실패:', error);
-      throw error;
-    }
-  }
 
-  async generateBasicChart(data, chartType, options = {}) {
-    try {
-      this.logger.info('기본 차트 생성 시작', { chartType });
-
-      const {
-        x_column = null,
-        y_column = null,
-        color_column = null,
-        title = null,
-        figsize = [10, 6],
-        dpi = 300,
-        style = 'seaborn'
-      } = options;
-
-      const scriptPath = 'python/visualization/basic_charts.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        chart_type: chartType,
-        x_column,
-        y_column,
-        color_column,
-        title,
-        figsize,
-        dpi,
-        style
-      };
-
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 120000
-      });
-
-      if (result.success) {
-        const chartResult = JSON.parse(result.output);
-        return this.resultFormatter.formatAnalysisResult(chartResult, 'basic_chart');
-      } else {
-        throw new Error(`기본 차트 생성 실패: ${result.error}`);
-      }
-    } catch (error) {
-      this.logger.error('기본 차트 생성 실패:', error);
-      throw error;
-    }
-  }
-
-  async generateStatisticalPlot(data, plotType, options = {}) {
-    try {
-      this.logger.info('통계 플롯 생성 시작', { plotType });
-
-      const {
-        x_column = null,
-        y_column = null,
-        hue_column = null,
-        plot_params = {},
-        save_format = 'png'
-      } = options;
-
-      const scriptPath = 'python/visualization/statistical_plots.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        plot_type: plotType,
-        x_column,
-        y_column,
-        hue_column,
-        plot_params,
-        save_format
-      };
-
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 150000
-      });
-
-      if (result.success) {
-        const plotResult = JSON.parse(result.output);
-        return this.resultFormatter.formatAnalysisResult(plotResult, 'statistical_plot');
-      } else {
-        throw new Error(`통계 플롯 생성 실패: ${result.error}`);
-      }
-    } catch (error) {
-      this.logger.error('통계 플롯 생성 실패:', error);
-      throw error;
-    }
-  }
-
-  async generateMLVisualization(data, vizType, modelData = null, options = {}) {
-    try {
-      this.logger.info('ML 시각화 생성 시작', { vizType });
-
-      const {
-        model_type = null,
-        predictions = null,
-        feature_names = null,
-        class_names = null,
-        save_format = 'png'
-      } = options;
-
-      const scriptPath = 'python/visualization/ml_visualization.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        model_data: modelData,
-        viz_type: vizType,
-        model_type,
-        predictions,
-        feature_names,
-        class_names,
-        save_format
-      };
-
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 180000
-      });
-
-      if (result.success) {
-        const vizResult = JSON.parse(result.output);
-        return this.resultFormatter.formatAnalysisResult(vizResult, 'ml_visualization');
-      } else {
-        throw new Error(`ML 시각화 생성 실패: ${result.error}`);
-      }
-    } catch (error) {
-      this.logger.error('ML 시각화 생성 실패:', error);
-      throw error;
-    }
-  }
-
-  async generateInteractivePlot(data, plotType, options = {}) {
-    try {
-      this.logger.info('인터랙티브 플롯 생성 시작', { plotType });
-
-      const {
-        x_column = null,
-        y_column = null,
-        color_column = null,
-        size_column = null,
-        hover_data = null,
-        title = null,
-        theme = 'plotly'
-      } = options;
-
-      const scriptPath = 'python/visualization/interactive_plots.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        plot_type: plotType,
+      const scriptPath = this.getChartScript('2d', 'scatter');
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
         x_column,
         y_column,
         color_column,
         size_column,
-        hover_data,
-        title,
-        theme
+        title: title || `${x_column} vs ${y_column}`,
+        xlabel: xlabel || x_column,
+        ylabel: ylabel || y_column,
+        style,
+        figsize: figsize.join(','),
+        alpha,
+        marker_size,
+        color_palette,
+        output_format
       };
 
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 180000
-      });
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
 
       if (result.success) {
-        const plotResult = JSON.parse(result.output);
-        return this.resultFormatter.formatAnalysisResult(plotResult, 'interactive_plot');
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('scatter', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
       } else {
-        throw new Error(`인터랙티브 플롯 생성 실패: ${result.error}`);
+        throw new Error(result.error);
       }
+
+    } catch (error) {
+      this.logger.error('산점도 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  async createLinePlot(data, options = {}) {
+    const {
+      x_column,
+      y_columns,
+      title = null,
+      xlabel = null,
+      ylabel = null,
+      style = 'seaborn',
+      figsize = [12, 6],
+      linewidth = 2,
+      marker = 'o',
+      color_palette = 'tab10',
+      output_format = 'png'
+    } = options;
+
+    try {
+      this.logger.info('선 그래프 생성 시작');
+
+      if (!x_column || !y_columns || y_columns.length === 0) {
+        throw new Error('x_column과 y_columns가 필요합니다.');
+      }
+
+      const scriptPath = this.getChartScript('2d', 'line');
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        x_column,
+        y_columns: y_columns.join(','),
+        title: title || `${y_columns.join(', ')} over ${x_column}`,
+        xlabel: xlabel || x_column,
+        ylabel: ylabel || 'Value',
+        style,
+        figsize: figsize.join(','),
+        linewidth,
+        marker,
+        color_palette,
+        output_format
+      };
+
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
+
+      if (result.success) {
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('line', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
+      } else {
+        throw new Error(result.error);
+      }
+
+    } catch (error) {
+      this.logger.error('선 그래프 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  async createBarChart(data, options = {}) {
+    const {
+      x_column,
+      y_column,
+      orientation = 'vertical',
+      title = null,
+      xlabel = null,
+      ylabel = null,
+      style = 'seaborn',
+      figsize = [10, 6],
+      color = 'steelblue',
+      output_format = 'png'
+    } = options;
+
+    try {
+      this.logger.info('막대 그래프 생성 시작');
+
+      if (!x_column || !y_column) {
+        throw new Error('x_column과 y_column이 필요합니다.');
+      }
+
+      const scriptPath = this.getChartScript('2d', 'bar');
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        x_column,
+        y_column,
+        orientation,
+        title: title || `${y_column} by ${x_column}`,
+        xlabel: xlabel || x_column,
+        ylabel: ylabel || y_column,
+        style,
+        figsize: figsize.join(','),
+        color,
+        output_format
+      };
+
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
+
+      if (result.success) {
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('bar', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
+      } else {
+        throw new Error(result.error);
+      }
+
+    } catch (error) {
+      this.logger.error('막대 그래프 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  async createHistogram(data, options = {}) {
+    const {
+      column,
+      bins = 30,
+      title = null,
+      xlabel = null,
+      ylabel = 'Frequency',
+      style = 'seaborn',
+      figsize = [10, 6],
+      color = 'skyblue',
+      alpha = 0.7,
+      kde = true,
+      output_format = 'png'
+    } = options;
+
+    try {
+      this.logger.info('히스토그램 생성 시작');
+
+      if (!column) {
+        throw new Error('column이 필요합니다.');
+      }
+
+      const scriptPath = this.getChartScript('2d', 'histogram');
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        column,
+        bins,
+        title: title || `Distribution of ${column}`,
+        xlabel: xlabel || column,
+        ylabel,
+        style,
+        figsize: figsize.join(','),
+        color,
+        alpha,
+        kde,
+        output_format
+      };
+
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
+
+      if (result.success) {
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('histogram', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
+      } else {
+        throw new Error(result.error);
+      }
+
+    } catch (error) {
+      this.logger.error('히스토그램 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  async createBoxPlot(data, options = {}) {
+    const {
+      y_column,
+      x_column = null,
+      title = null,
+      xlabel = null,
+      ylabel = null,
+      style = 'seaborn',
+      figsize = [10, 6],
+      output_format = 'png'
+    } = options;
+
+    try {
+      this.logger.info('박스플롯 생성 시작');
+
+      if (!y_column) {
+        throw new Error('y_column이 필요합니다.');
+      }
+
+      const scriptPath = this.getChartScript('2d', 'boxplot');
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        y_column,
+        x_column,
+        title: title || `Box Plot of ${y_column}${x_column ? ` by ${x_column}` : ''}`,
+        xlabel: xlabel || x_column || '',
+        ylabel: ylabel || y_column,
+        style,
+        figsize: figsize.join(','),
+        output_format
+      };
+
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
+
+      if (result.success) {
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('boxplot', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
+      } else {
+        throw new Error(result.error);
+      }
+
+    } catch (error) {
+      this.logger.error('박스플롯 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  async createHeatmap(data, options = {}) {
+    const {
+      title = 'Heatmap',
+      cmap = 'viridis',
+      annot = true,
+      fmt = '.2f',
+      style = 'seaborn',
+      figsize = [10, 8],
+      output_format = 'png'
+    } = options;
+
+    try {
+      this.logger.info('히트맵 생성 시작');
+
+      const scriptPath = 'python/visualization/heatmap.py';
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        title,
+        cmap,
+        annot,
+        fmt,
+        style,
+        figsize: figsize.join(','),
+        output_format
+      };
+
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
+
+      if (result.success) {
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('heatmap', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
+      } else {
+        throw new Error(result.error);
+      }
+
+    } catch (error) {
+      this.logger.error('히트맵 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  async create3DScatterPlot(data, options = {}) {
+    const {
+      x_column,
+      y_column,
+      z_column,
+      color_column = null,
+      title = null,
+      xlabel = null,
+      ylabel = null,
+      zlabel = null,
+      style = 'seaborn',
+      figsize = [12, 9],
+      alpha = 0.7,
+      marker_size = 50,
+      output_format = 'png'
+    } = options;
+
+    try {
+      this.logger.info('3D 산점도 생성 시작');
+
+      if (!x_column || !y_column || !z_column) {
+        throw new Error('x_column, y_column, z_column이 모두 필요합니다.');
+      }
+
+      const scriptPath = this.getChartScript('3d', 'scatter_3d');
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        x_column,
+        y_column,
+        z_column,
+        color_column,
+        title: title || `3D Scatter: ${x_column}, ${y_column}, ${z_column}`,
+        xlabel: xlabel || x_column,
+        ylabel: ylabel || y_column,
+        zlabel: zlabel || z_column,
+        style,
+        figsize: figsize.join(','),
+        alpha,
+        marker_size,
+        output_format
+      };
+
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
+
+      if (result.success) {
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('scatter_3d', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
+      } else {
+        throw new Error(result.error);
+      }
+
+    } catch (error) {
+      this.logger.error('3D 산점도 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  async createInteractivePlot(data, options = {}) {
+    const {
+      chart_type = 'scatter',
+      x_column,
+      y_column,
+      color_column = null,
+      title = null,
+      library = 'plotly',
+      output_format = 'html'
+    } = options;
+
+    try {
+      this.logger.info('인터랙티브 플롯 생성 시작');
+
+      const scriptPath = 'python/visualization/interactive_plots.py';
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        chart_type,
+        x_column,
+        y_column,
+        color_column,
+        title: title || `Interactive ${chart_type}`,
+        library,
+        output_format
+      };
+
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
+
+      if (result.success) {
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('interactive', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
+      } else {
+        throw new Error(result.error);
+      }
+
     } catch (error) {
       this.logger.error('인터랙티브 플롯 생성 실패:', error);
       throw error;
     }
   }
 
-  async generateDashboard(data, dashboardConfig) {
+  async createMultipleCharts(data, chartConfigs, options = {}) {
+    const {
+      layout = 'grid',
+      rows = 2,
+      cols = 2,
+      figsize = [16, 12],
+      title = 'Multiple Charts',
+      output_format = 'png'
+    } = options;
+
     try {
-      this.logger.info('대시보드 생성 시작');
+      this.logger.info(`다중 차트 생성 시작: ${chartConfigs.length}개 차트`);
 
-      const {
-        charts = [],
-        layout = 'grid',
-        title = 'Data Dashboard',
-        theme = 'default',
-        export_format = 'html'
-      } = dashboardConfig;
-
-      const scriptPath = 'python/visualization/dashboard.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        charts,
+      const scriptPath = 'python/visualization/multiple_charts.py';
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        chart_configs: JSON.stringify(chartConfigs),
         layout,
+        rows,
+        cols,
+        figsize: figsize.join(','),
         title,
-        theme,
-        export_format
+        output_format
       };
 
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 300000 // 5분
-      });
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
 
       if (result.success) {
-        const dashboardResult = JSON.parse(result.output);
-        return this.resultFormatter.formatAnalysisResult(dashboardResult, 'dashboard');
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('multiple', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
       } else {
-        throw new Error(`대시보드 생성 실패: ${result.error}`);
+        throw new Error(result.error);
       }
+
     } catch (error) {
-      this.logger.error('대시보드 생성 실패:', error);
+      this.logger.error('다중 차트 생성 실패:', error);
       throw error;
     }
   }
 
-  async generateCustomVisualization(data, customCode, options = {}) {
+  async createStatisticalPlots(data, options = {}) {
+    const {
+      plot_types = ['distribution', 'correlation', 'regression'],
+      columns = null,
+      style = 'seaborn',
+      figsize = [15, 10],
+      output_format = 'png'
+    } = options;
+
     try {
-      this.logger.info('커스텀 시각화 생성 시작');
+      this.logger.info('통계 플롯 생성 시작');
 
-      const {
-        imports = [],
-        parameters = {},
-        save_format = 'png'
-      } = options;
-
-      const scriptPath = 'python/visualization/custom_viz.py';
-      const args = {
-        data_source: typeof data === 'string' ? data : 'memory',
-        data_content: typeof data === 'string' ? null : JSON.stringify(data),
-        custom_code: customCode,
-        imports,
-        parameters,
-        save_format
+      const scriptPath = 'python/visualization/statistical_plots.py';
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        plot_types: plot_types.join(','),
+        columns: columns ? columns.join(',') : null,
+        style,
+        figsize: figsize.join(','),
+        output_format
       };
 
-      const result = await this.pythonExecutor.executeFile(scriptPath, {
-        args: JSON.stringify(args),
-        timeout: 240000 // 4분
-      });
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
 
       if (result.success) {
-        const customResult = JSON.parse(result.output);
-        return this.resultFormatter.formatAnalysisResult(customResult, 'custom_visualization');
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('statistical', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
       } else {
-        throw new Error(`커스텀 시각화 생성 실패: ${result.error}`);
+        throw new Error(result.error);
       }
+
     } catch (error) {
-      this.logger.error('커스텀 시각화 생성 실패:', error);
+      this.logger.error('통계 플롯 생성 실패:', error);
       throw error;
     }
   }
 
-  validateChartConfig(chartConfig) {
-    const { chart_type, chart_category } = chartConfig;
+  async autoGenerateCharts(data, options = {}) {
+    const {
+      max_charts = 6,
+      include_correlation = true,
+      include_distribution = true,
+      include_relationships = true,
+      target_column = null
+    } = options;
 
-    if (!chart_category || !this.supportedChartTypes[chart_category]) {
-      throw new Error(`지원하지 않는 차트 카테고리: ${chart_category}`);
-    }
+    try {
+      this.logger.info('자동 차트 생성 시작');
 
-    if (!chart_type || !this.supportedChartTypes[chart_category].includes(chart_type)) {
-      throw new Error(`지원하지 않는 차트 타입: ${chart_type} (카테고리: ${chart_category})`);
+      const scriptPath = 'python/visualization/auto_charts.py';
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        max_charts,
+        include_correlation,
+        include_distribution,
+        include_relationships,
+        target_column
+      };
+
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
+
+      if (result.success) {
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('auto_generated', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
+      } else {
+        throw new Error(result.error);
+      }
+
+    } catch (error) {
+      this.logger.error('자동 차트 생성 실패:', error);
+      throw error;
     }
   }
 
-  getVisualizationScriptPath(category, type) {
-    const scriptMap = {
-      basic: 'python/visualization/basic_charts.py',
-      statistical: 'python/visualization/statistical_plots.py',
-      ml: 'python/visualization/ml_visualization.py',
-      advanced: 'python/visualization/advanced_plots.py'
-    };
+  async createCustomChart(data, customCode, options = {}) {
+    const {
+      title = 'Custom Chart',
+      figsize = [10, 6],
+      style = 'seaborn',
+      output_format = 'png'
+    } = options;
 
-    return scriptMap[category] || 'python/visualization/basic_charts.py';
+    try {
+      this.logger.info('커스텀 차트 생성 시작');
+
+      const scriptPath = 'python/visualization/custom_chart.py';
+      const params = {
+        data_path: typeof data === 'string' ? data : null,
+        data_json: typeof data === 'object' ? JSON.stringify(data) : null,
+        custom_code: customCode,
+        title,
+        figsize: figsize.join(','),
+        style,
+        output_format
+      };
+
+      const result = await this.pythonExecutor.executeScript(scriptPath, params);
+
+      if (result.success) {
+        const chartResult = JSON.parse(result.output);
+        this.saveChartHistory('custom', chartResult);
+        return this.resultFormatter.formatAnalysisResult(chartResult, 'visualization');
+      } else {
+        throw new Error(result.error);
+      }
+
+    } catch (error) {
+      this.logger.error('커스텀 차트 생성 실패:', error);
+      throw error;
+    }
   }
 
-  recordChartHistory(chartConfig, result) {
-    const record = {
-      timestamp: new Date().toISOString(),
-      chart_config: chartConfig,
-      success: !result.error,
-      chart_files: result.chart_files || [],
-      generation_time: result.generation_time || null
-    };
-
-    this.chartHistory.push(record);
+  getChartScript(category, chartType) {
+    if (this.chartConfig?.chart_types?.[category]?.[chartType]?.script) {
+      return this.chartConfig.chart_types[category][chartType].script;
+    }
     
-    // 히스토리 크기 제한 (최대 100개)
-    if (this.chartHistory.length > 100) {
-      this.chartHistory = this.chartHistory.slice(-50);
+    return `python/visualization/${category}/${chartType}.py`;
+  }
+
+  saveChartHistory(chartType, chartResult) {
+    try {
+      const historyEntry = {
+        timestamp: new Date().toISOString(),
+        chart_type: chartType,
+        output_path: chartResult.results?.chart_path || null,
+        parameters: chartResult.parameters || {},
+        execution_time: chartResult.metadata?.execution_time || null
+      };
+
+      this.chartHistory.push(historyEntry);
+
+      // 히스토리 크기 제한 (최근 200개만 유지)
+      if (this.chartHistory.length > 200) {
+        this.chartHistory = this.chartHistory.slice(-100);
+      }
+
+      this.logger.debug('차트 히스토리 저장 완료');
+    } catch (error) {
+      this.logger.warn('차트 히스토리 저장 실패:', error);
     }
   }
 
-  // 빠른 차트 생성 메서드들
-  async createBarChart(data, xColumn, yColumn, options = {}) {
-    return await this.generateBasicChart(data, 'bar', {
-      x_column: xColumn,
-      y_column: yColumn,
-      ...options
-    });
-  }
-
-  async createLineChart(data, xColumn, yColumn, options = {}) {
-    return await this.generateBasicChart(data, 'line', {
-      x_column: xColumn,
-      y_column: yColumn,
-      ...options
-    });
-  }
-
-  async createScatterPlot(data, xColumn, yColumn, options = {}) {
-    return await this.generateBasicChart(data, 'scatter', {
-      x_column: xColumn,
-      y_column: yColumn,
-      ...options
-    });
-  }
-
-  async createHistogram(data, column, options = {}) {
-    return await this.generateBasicChart(data, 'histogram', {
-      x_column: column,
-      ...options
-    });
-  }
-
-  async createBoxPlot(data, column, options = {}) {
-    return await this.generateBasicChart(data, 'box', {
-      y_column: column,
-      ...options
-    });
-  }
-
-  async createHeatmap(data, options = {}) {
-    return await this.generateStatisticalPlot(data, 'heatmap', options);
-  }
-
-  async createPairPlot(data, options = {}) {
-    return await this.generateStatisticalPlot(data, 'pairplot', options);
-  }
-
-  async createCorrelationMatrix(data, options = {}) {
-    return await this.generateStatisticalPlot(data, 'correlation_matrix', options);
-  }
-
-  // 유틸리티 메서드들
-  getChartHistory(limit = 10) {
+  getChartHistory(limit = 50) {
     return this.chartHistory.slice(-limit);
   }
 
-  getSupportedChartTypes() {
-    return this.supportedChartTypes;
-  }
-
-  getSupportedStyles() {
-    return ['default', 'seaborn', 'ggplot', 'bmh', 'fivethirtyeight', 'dark_background'];
-  }
-
-  getSupportedFormats() {
-    return ['png', 'jpg', 'svg', 'pdf', 'html'];
-  }
-
-  getRecommendedChartType(dataInfo) {
-    const { numeric_columns, categorical_columns, row_count } = dataInfo;
-    
-    const recommendations = [];
-
-    // 단일 숫자형 변수
-    if (numeric_columns.length === 1 && categorical_columns.length === 0) {
-      recommendations.push('histogram', 'box');
-    }
-    
-    // 두 숫자형 변수
-    else if (numeric_columns.length === 2) {
-      recommendations.push('scatter', 'line');
-    }
-    
-    // 하나의 범주형, 하나의 숫자형
-    else if (numeric_columns.length === 1 && categorical_columns.length === 1) {
-      recommendations.push('bar', 'box');
-    }
-    
-    // 여러 숫자형 변수
-    else if (numeric_columns.length > 2) {
-      recommendations.push('correlation_heatmap', 'pairplot');
-    }
-    
-    // 시계열 데이터 (날짜 컬럼이 있는 경우)
-    if (dataInfo.date_columns && dataInfo.date_columns.length > 0) {
-      recommendations.push('line', 'time_series');
-    }
-
-    return recommendations;
-  }
-
-  async getChartStatus() {
+  getAvailableChartTypes() {
     return {
-      python_executor_status: await this.pythonExecutor.getExecutionStats(),
-      chart_history_count: this.chartHistory.length,
-      supported_chart_types: this.supportedChartTypes,
-      last_chart: this.chartHistory.length > 0 ? 
-        this.chartHistory[this.chartHistory.length - 1] : null
+      '2d': {
+        scatter: 'Scatter Plot - 산점도',
+        line: 'Line Plot - 선 그래프',
+        bar: 'Bar Chart - 막대 그래프',
+        histogram: 'Histogram - 히스토그램',
+        boxplot: 'Box Plot - 박스플롯',
+        heatmap: 'Heatmap - 히트맵'
+      },
+      '3d': {
+        scatter_3d: '3D Scatter Plot - 3D 산점도',
+        surface: 'Surface Plot - 표면 그래프'
+      },
+      interactive: {
+        plotly: 'Plotly Interactive Charts',
+        bokeh: 'Bokeh Interactive Charts'
+      },
+      statistical: {
+        distribution: 'Distribution Plots',
+        correlation: 'Correlation Plots',
+        regression: 'Regression Plots'
+      }
     };
   }
 
-  async cleanup() {
-    await this.pythonExecutor.shutdown();
-    this.logger.info('ChartGenerator 정리 완료');
+  getAvailableStyles() {
+    return [
+      'seaborn',
+      'ggplot',
+      'fivethirtyeight',
+      'bmh',
+      'dark_background',
+      'classic',
+      'seaborn-whitegrid',
+      'seaborn-darkgrid'
+    ];
+  }
+
+  getAvailableOutputFormats() {
+    return ['png', 'jpg', 'svg', 'pdf', 'html', 'json'];
+  }
+
+  getPerformanceMetrics() {
+    const totalCharts = this.chartHistory.length;
+    const recentCharts = this.chartHistory.slice(-10);
+    
+    const avgExecutionTime = recentCharts.length > 0 
+      ? recentCharts.reduce((sum, c) => sum + (c.execution_time || 0), 0) / recentCharts.length 
+      : 0;
+
+    const chartTypes = [...new Set(this.chartHistory.map(c => c.chart_type))];
+
+    return {
+      total_charts_generated: totalCharts,
+      unique_chart_types: chartTypes.length,
+      average_execution_time: avgExecutionTime,
+      most_common_chart_type: this.getMostCommonChartType()
+    };
+  }
+
+  getMostCommonChartType() {
+    if (this.chartHistory.length === 0) return 'none';
+    
+    const typeCounts = {};
+    this.chartHistory.forEach(c => {
+      typeCounts[c.chart_type] = (typeCounts[c.chart_type] || 0) + 1;
+    });
+
+    return Object.keys(typeCounts).reduce((a, b) => typeCounts[a] > typeCounts[b] ? a : b);
   }
 }

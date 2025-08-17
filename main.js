@@ -1,965 +1,611 @@
 #!/usr/bin/env node
 
+// main.js - ML MCP 서버 메인 파일
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { fileURLToPath } from 'url';
-import path from 'path';
-import fs from 'fs/promises';
+import { MainProcessor } from './core/main-processor.js';
 import { Logger } from './utils/logger.js';
-import { ModelManager } from './core/model-manager.js';
-import { PipelineManager } from './core/pipeline-manager.js';
-import { MemoryManager } from './core/memory-manager.js';
-import { QueryAnalyzer } from './parsers/query-analyzer.js';
-import { IntentParser } from './parsers/intent-parser.js';
-import { WorkflowBuilder } from './parsers/workflow-builder.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 class MLMCPServer {
   constructor() {
     this.server = new Server(
       {
-        name: 'ml-mcp-server',
+        name: 'ml-mcp-system',
         version: '1.0.0'
       },
       {
         capabilities: {
-          tools: {
-            listChanged: true,
-            supportsStreaming: false
-          },
-          resources: {
-            subscribe: false,
-            listChanged: false
-          },
-          prompts: {
-            listChanged: false
-          }
+          tools: {},
+          resources: {},
+          prompts: {}
         }
       }
     );
-
-    // 핵심 컴포넌트 초기화
+    
     this.logger = new Logger();
-    this.modelManager = new ModelManager();
-    this.pipelineManager = new PipelineManager();
-    this.memoryManager = new MemoryManager();
-    this.queryAnalyzer = new QueryAnalyzer();
-    this.intentParser = new IntentParser();
-    this.workflowBuilder = new WorkflowBuilder();
-
-    // 세션 관리
-    this.activeSessions = new Map();
-    this.currentMode = 'general';
-
-    // 도구 등록
-    this.setupTools();
-  }
-
-  setupTools() {
-    // 사용자 쿼리 처리 도구
-    this.server.setRequestHandler('tools/call', async (request) => {
-      const { name, arguments: args } = request.params;
-      
-      try {
-        this.logger.info(`도구 호출: ${name}`, args);
-        
-        switch (name) {
-          case 'process_user_query':
-            return await this.processUserQuery(args);
-          case 'analyze_data':
-            return await this.analyzeData(args);
-          case 'train_model':
-            return await this.trainModel(args);
-          case 'visualize_data':
-            return await this.visualizeData(args);
-          case 'get_system_status':
-            return await this.getSystemStatus(args);
-          case 'change_mode':
-            return await this.changeMode(args);
-          default:
-            throw new Error(`Unknown tool: ${name}`);
-        }
-      } catch (error) {
-        this.logger.error(`도구 실행 실패 [${name}]:`, error);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                type: 'error',
-                message: error.message,
-                tool: name
-              })
-            }
-          ],
-          isError: true
-        };
-      }
-    });
-
-    // 도구 목록 제공
-    this.server.setRequestHandler('tools/list', async () => {
-      return {
-        tools: this.getAvailableTools()
-      };
-    });
-  }
-
-  getAvailableTools() {
-    const baseTools = [
-      {
-        name: 'process_user_query',
-        description: '사용자 쿼리를 분석하고 적절한 작업을 수행합니다',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: '사용자의 자연어 요청'
-            },
-            session_id: {
-              type: 'string',
-              description: '세션 ID'
-            },
-            conversation_history: {
-              type: 'array',
-              description: '대화 기록'
-            }
-          },
-          required: ['query']
-        }
-      },
-      {
-        name: 'analyze_data',
-        description: '데이터 분석을 수행합니다',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: '분석 요청 내용'
-            },
-            file_path: {
-              type: 'string',
-              description: '분석할 데이터 파일 경로'
-            },
-            analysis_type: {
-              type: 'string',
-              enum: ['basic', 'advanced', 'correlation', 'distribution', 'auto'],
-              description: '분석 유형',
-              default: 'auto'
-            },
-            columns: {
-              type: 'array',
-              items: { type: 'string' },
-              description: '분석할 컬럼 목록'
-            }
-          },
-          required: ['query']
-        }
-      },
-      {
-        name: 'train_model',
-        description: '머신러닝 모델을 훈련합니다',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: '모델 훈련 요청'
-            },
-            file_path: {
-              type: 'string',
-              description: '훈련 데이터 파일 경로'
-            },
-            target_column: {
-              type: 'string',
-              description: '타겟 변수 컬럼명'
-            },
-            model_type: {
-              type: 'string',
-              enum: ['classification', 'regression', 'clustering', 'auto'],
-              description: '모델 유형',
-              default: 'auto'
-            }
-          },
-          required: ['query']
-        }
-      },
-      {
-        name: 'visualize_data',
-        description: '데이터 시각화를 수행합니다',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: '시각화 요청 내용'
-            },
-            file_path: {
-              type: 'string',
-              description: '시각화할 데이터 파일 경로'
-            },
-            chart_type: {
-              type: 'string',
-              enum: ['auto', 'scatter', 'line', 'bar', 'histogram', 'heatmap', 'boxplot'],
-              description: '차트 유형',
-              default: 'auto'
-            },
-            x_column: {
-              type: 'string',
-              description: 'X축 컬럼명'
-            },
-            y_column: {
-              type: 'string',
-              description: 'Y축 컬럼명'
-            }
-          },
-          required: ['query']
-        }
-      },
-      {
-        name: 'get_system_status',
-        description: '시스템 상태를 확인합니다',
-        inputSchema: {
-          type: 'object',
-          properties: {}
-        }
-      },
-      {
-        name: 'change_mode',
-        description: '작업 모드를 변경합니다',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            mode: {
-              type: 'string',
-              enum: ['general', 'ml', 'deep_learning', 'nlp', 'computer_vision'],
-              description: '변경할 모드'
-            }
-          },
-          required: ['mode']
-        }
-      }
-    ];
-
-    return baseTools;
-  }
-
-  async processUserQuery(args) {
-    try {
-      const { query, session_id, conversation_history = [] } = args;
-      
-      this.logger.info(`사용자 쿼리 처리: ${query}`);
-      
-      // 세션 관리
-      if (session_id && !this.activeSessions.has(session_id)) {
-        this.activeSessions.set(session_id, {
-          id: session_id,
-          startTime: new Date(),
-          messageCount: 0,
-          context: {}
-        });
-      }
-
-      // 1. 쿼리 분석
-      const queryAnalysis = await this.queryAnalyzer.analyzeQuery(query);
-      
-      // 2. 의도 파악
-      const intentAnalysis = await this.intentParser.parseIntent(query, {
-        mode: this.currentMode,
-        history: conversation_history.slice(-5)
-      });
-
-      // 3. 파일 자동 감지 (필요한 경우)
-      const availableFiles = await this.detectDataFiles();
-      
-      // 4. 적절한 작업 결정 및 실행
-      const result = await this.executeBasedOnIntent(intentAnalysis, queryAnalysis, availableFiles, args);
-      
-      // 5. 세션 업데이트
-      if (session_id) {
-        const session = this.activeSessions.get(session_id);
-        session.messageCount++;
-        session.lastActivity = new Date();
-      }
-
-      return result;
-
-    } catch (error) {
-      this.logger.error('사용자 쿼리 처리 실패:', error);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              type: 'error',
-              message: `요청 처리 중 오류가 발생했습니다: ${error.message}`,
-              suggestion: '다시 시도하거나 다른 방식으로 질문해보세요.'
-            })
-          }
-        ],
-        isError: true
-      };
-    }
-  }
-
-  async executeBasedOnIntent(intentAnalysis, queryAnalysis, availableFiles, originalArgs) {
-    const { intent, confidence, complexity } = intentAnalysis;
+    this.processor = new MainProcessor();
+    this.isInitialized = false;
     
-    // 의도에 따른 작업 분기
-    switch (intent) {
-      case 'analyze':
-        return await this.handleAnalysisRequest(intentAnalysis, queryAnalysis, availableFiles);
-      
-      case 'visualize':
-        return await this.handleVisualizationRequest(intentAnalysis, queryAnalysis, availableFiles);
-      
-      case 'train':
-        return await this.handleTrainingRequest(intentAnalysis, queryAnalysis, availableFiles);
-      
-      case 'system':
-        return await this.handleSystemRequest(intentAnalysis, originalArgs);
-      
-      case 'help':
-        return await this.handleHelpRequest(intentAnalysis);
-      
-      case 'general':
-      default:
-        return await this.handleGeneralRequest(intentAnalysis, queryAnalysis);
-    }
-  }
-
-  async handleAnalysisRequest(intentAnalysis, queryAnalysis, availableFiles) {
-    try {
-      // 분석할 파일 결정
-      const targetFile = this.selectTargetFile(queryAnalysis, availableFiles);
-      
-      if (!targetFile) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                type: 'error',
-                message: '분석할 데이터 파일을 찾을 수 없습니다.',
-                suggestion: '파일명을 명시하거나 현재 디렉토리에 데이터 파일(.csv, .xlsx 등)을 추가해주세요.',
-                available_files: availableFiles
-              })
-            }
-          ]
-        };
-      }
-
-      // 워크플로우 생성
-      const workflow = await this.workflowBuilder.buildWorkflow(intentAnalysis, {
-        ...queryAnalysis,
-        target_file: targetFile
-      });
-
-      // 파이프라인 실행
-      const result = await this.pipelineManager.executeWorkflow(
-        workflow, 
-        intentAnalysis.session_id || 'default',
-        intentAnalysis.original_query
-      );
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              type: 'analysis_result',
-              summary: result.finalResult?.summary || '분석이 완료되었습니다.',
-              file_analyzed: targetFile,
-              workflow_name: workflow.workflow.name,
-              execution_time: result.executionTime,
-              results: result.finalResult,
-              files_created: this.extractCreatedFiles(result)
-            })
-          }
-        ]
-      };
-
-    } catch (error) {
-      this.logger.error('분석 요청 처리 실패:', error);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              type: 'error',
-              message: `분석 중 오류가 발생했습니다: ${error.message}`,
-              suggestion: '파일 형식이나 데이터 구조를 확인해주세요.'
-            })
-          }
-        ],
-        isError: true
-      };
-    }
-  }
-
-  async handleVisualizationRequest(intentAnalysis, queryAnalysis, availableFiles) {
-    try {
-      const targetFile = this.selectTargetFile(queryAnalysis, availableFiles);
-      
-      if (!targetFile) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                type: 'error',
-                message: '시각화할 데이터 파일을 찾을 수 없습니다.',
-                available_files: availableFiles
-              })
-            }
-          ]
-        };
-      }
-
-      // 시각화 워크플로우 생성
-      const workflow = await this.workflowBuilder.buildVisualizationWorkflow(intentAnalysis, {
-        ...queryAnalysis,
-        target_file: targetFile
-      });
-
-      // 실행
-      const result = await this.pipelineManager.executeWorkflow(
-        workflow,
-        intentAnalysis.session_id || 'default',
-        intentAnalysis.original_query
-      );
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              type: 'visualization_result',
-              summary: '시각화가 생성되었습니다.',
-              file_analyzed: targetFile,
-              charts_created: this.extractVisualizationFiles(result),
-              insights: this.extractInsights(result),
-              workflow_name: workflow.workflow.name
-            })
-          }
-        ]
-      };
-
-    } catch (error) {
-      this.logger.error('시각화 요청 처리 실패:', error);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              type: 'error',
-              message: `시각화 중 오류가 발생했습니다: ${error.message}`
-            })
-          }
-        ],
-        isError: true
-      };
-    }
-  }
-
-  async handleTrainingRequest(intentAnalysis, queryAnalysis, availableFiles) {
-    try {
-      const targetFile = this.selectTargetFile(queryAnalysis, availableFiles);
-      
-      if (!targetFile) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                type: 'error',
-                message: '훈련할 데이터 파일을 찾을 수 없습니다.',
-                available_files: availableFiles
-              })
-            }
-          ]
-        };
-      }
-
-      // 머신러닝 워크플로우 생성
-      const workflow = await this.workflowBuilder.buildMLWorkflow(intentAnalysis, {
-        ...queryAnalysis,
-        target_file: targetFile
-      });
-
-      // 실행
-      const result = await this.pipelineManager.executeWorkflow(
-        workflow,
-        intentAnalysis.session_id || 'default',
-        intentAnalysis.original_query
-      );
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              type: 'training_result',
-              summary: '모델 훈련이 완료되었습니다.',
-              file_used: targetFile,
-              model_performance: this.extractModelPerformance(result),
-              model_saved: this.extractModelPath(result),
-              recommendations: this.extractRecommendations(result)
-            })
-          }
-        ]
-      };
-
-    } catch (error) {
-      this.logger.error('훈련 요청 처리 실패:', error);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              type: 'error',
-              message: `모델 훈련 중 오류가 발생했습니다: ${error.message}`
-            })
-          }
-        ],
-        isError: true
-      };
-    }
-  }
-
-  async handleSystemRequest(intentAnalysis, originalArgs) {
-    try {
-      const systemStatus = await this.getSystemStatus();
-      return systemStatus;
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              type: 'error',
-              message: `시스템 상태 확인 실패: ${error.message}`
-            })
-          }
-        ],
-        isError: true
-      };
-    }
-  }
-
-  async handleHelpRequest(intentAnalysis) {
-    const helpContent = `
-🤖 ML 분석 도우미 도움말
-
-📊 **데이터 분석:**
-• "data.csv 파일을 분석해주세요"
-• "기본 통계를 보여주세요"
-• "상관관계 분석을 해주세요"
-
-📈 **시각화:**
-• "히스토그램을 그려주세요"
-• "산점도를 만들어주세요"
-• "상관관계 히트맵을 보여주세요"
-
-🤖 **머신러닝:**
-• "예측 모델을 만들어주세요"
-• "클러스터링을 해주세요"
-• "분류 모델을 훈련시켜주세요"
-
-⚙️ **시스템:**
-• "상태 확인해주세요"
-• "모드를 변경해주세요"
-
-💡 **팁:**
-• 현재 디렉토리의 파일들을 자동으로 감지합니다
-• 자연어로 편하게 요청하세요
-• 구체적인 컬럼명이나 파일명을 지정할 수 있습니다
-`;
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: helpContent
-        }
-      ]
-    };
-  }
-
-  async handleGeneralRequest(intentAnalysis, queryAnalysis) {
-    // 일반적인 대화나 질문 처리
-    const response = `안녕하세요! ML 분석 도우미입니다.
-
-다음과 같은 작업을 도와드릴 수 있습니다:
-• 데이터 분석 및 통계
-• 데이터 시각화
-• 머신러닝 모델 훈련
-• 시스템 상태 확인
-
-구체적인 작업을 요청해주시면 도와드리겠습니다.
-예: "data.csv 파일을 분석해주세요" 또는 "히스토그램을 그려주세요"`;
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: response
-        }
-      ]
-    };
-  }
-
-  async analyzeData(args) {
-    // 직접 분석 도구 호출을 위한 별도 메서드
-    return await this.handleAnalysisRequest(
-      { intent: 'analyze', ...args },
-      await this.queryAnalyzer.analyzeQuery(args.query || ''),
-      await this.detectDataFiles()
-    );
-  }
-
-  async trainModel(args) {
-    // 직접 훈련 도구 호출을 위한 별도 메서드
-    return await this.handleTrainingRequest(
-      { intent: 'train', ...args },
-      await this.queryAnalyzer.analyzeQuery(args.query || ''),
-      await this.detectDataFiles()
-    );
-  }
-
-  async visualizeData(args) {
-    // 직접 시각화 도구 호출을 위한 별도 메서드
-    return await this.handleVisualizationRequest(
-      { intent: 'visualize', ...args },
-      await this.queryAnalyzer.analyzeQuery(args.query || ''),
-      await this.detectDataFiles()
-    );
-  }
-
-  async getSystemStatus(args = {}) {
-    try {
-      // 메모리 상태
-      const memoryStatus = await this.memoryManager.getCurrentMemoryUsage();
-      
-      // 모델 상태
-      const modelStatus = this.modelManager.getLoadedModels();
-      
-      // 세션 정보
-      const sessionInfo = {
-        active_sessions: this.activeSessions.size,
-        current_mode: this.currentMode
-      };
-
-      // 사용 가능한 파일들
-      const availableFiles = await this.detectDataFiles();
-
-      const statusText = `📊 시스템 상태 보고서
-
-🤖 **모델 상태:**
-- 로드된 모델: ${Object.keys(modelStatus).length}개
-- 현재 모드: ${this.currentMode}
-
-💾 **메모리 사용량:**
-- 총 사용량: ${Math.round(memoryStatus.totalMB)}MB
-- 사용률: ${Math.round(memoryStatus.usagePercent)}%
-
-🔗 **세션 정보:**
-- 활성 세션: ${sessionInfo.active_sessions}개
-
-📁 **사용 가능한 파일:**
-${availableFiles.length > 0 ? 
-  availableFiles.map(f => `- ${f}`).join('\n') : 
-  '- 감지된 데이터 파일 없음'}
-
-✅ **시스템 상태:** 정상 작동`;
-
-      return {
-        content: [
-          {
-            type: 'text',
-            text: statusText
-          }
-        ]
-      };
-
-    } catch (error) {
-      this.logger.error('시스템 상태 확인 실패:', error);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `❌ 시스템 상태 확인 중 오류가 발생했습니다: ${error.message}`
-          }
-        ],
-        isError: true
-      };
-    }
-  }
-
-  async changeMode(args) {
-    try {
-      const { mode } = args;
-      
-      if (!mode) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: '변경할 모드를 지정해주세요. (general, ml, deep_learning, nlp, computer_vision)'
-            }
-          ]
-        };
-      }
-
-      const validModes = ['general', 'ml', 'deep_learning', 'nlp', 'computer_vision'];
-      if (!validModes.includes(mode)) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `유효하지 않은 모드입니다. 사용 가능한 모드: ${validModes.join(', ')}`
-            }
-          ]
-        };
-      }
-
-      this.currentMode = mode;
-      
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `🔄 작업 모드가 '${mode}'로 변경되었습니다.`
-          }
-        ]
-      };
-
-    } catch (error) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `모드 변경 실패: ${error.message}`
-          }
-        ],
-        isError: true
-      };
-    }
-  }
-
-  async detectDataFiles() {
-    try {
-      const files = await fs.readdir('./');
-      const dataFiles = files.filter(file =>
-        file.endsWith('.csv') ||
-        file.endsWith('.xlsx') ||
-        file.endsWith('.json') ||
-        file.endsWith('.txt') ||
-        file.endsWith('.parquet')
-      );
-      
-      return dataFiles;
-    } catch (error) {
-      this.logger.error('파일 감지 실패:', error);
-      return [];
-    }
-  }
-
-  selectTargetFile(queryAnalysis, availableFiles) {
-    // 명시적으로 지정된 파일이 있는지 확인
-    if (queryAnalysis.resolved_references?.files?.length > 0) {
-      const specifiedFile = queryAnalysis.resolved_references.files[0];
-      if (availableFiles.includes(specifiedFile.name || specifiedFile)) {
-        return specifiedFile.name || specifiedFile;
-      }
-    }
-
-    // 쿼리에서 파일명 추출 시도
-    const filePattern = /([a-zA-Z0-9_-]+\.(csv|xlsx|json|txt|parquet))/gi;
-    const matches = queryAnalysis.original_query?.match(filePattern);
-    if (matches) {
-      const mentionedFile = matches[0];
-      if (availableFiles.includes(mentionedFile)) {
-        return mentionedFile;
-      }
-    }
-
-    // 기본적으로 첫 번째 CSV 파일 선택
-    const csvFiles = availableFiles.filter(f => f.endsWith('.csv'));
-    if (csvFiles.length > 0) {
-      return csvFiles[0];
-    }
-
-    // CSV가 없으면 다른 데이터 파일 선택
-    if (availableFiles.length > 0) {
-      return availableFiles[0];
-    }
-
-    return null;
-  }
-
-  extractCreatedFiles(result) {
-    const files = [];
-    
-    if (result.finalResult?.outputs) {
-      Object.values(result.finalResult.outputs).forEach(output => {
-        if (output.result?.output_file) {
-          files.push(output.result.output_file);
-        }
-        if (output.result?.chart_path) {
-          files.push(output.result.chart_path);
-        }
-      });
-    }
-
-    return files;
-  }
-
-  extractVisualizationFiles(result) {
-    const charts = [];
-    
-    if (result.finalResult?.visualizations) {
-      result.finalResult.visualizations.forEach(viz => {
-        if (viz.filePath) {
-          charts.push({
-            type: viz.chartType,
-            file: viz.filePath,
-            description: viz.description
-          });
-        }
-      });
-    }
-
-    return charts;
-  }
-
-  extractInsights(result) {
-    const insights = [];
-    
-    if (result.finalResult?.recommendations) {
-      insights.push(...result.finalResult.recommendations);
-    }
-
-    return insights;
-  }
-
-  extractModelPerformance(result) {
-    if (result.finalResult?.statistics) {
-      return result.finalResult.statistics;
-    }
-    return null;
-  }
-
-  extractModelPath(result) {
-    const files = this.extractCreatedFiles(result);
-    const modelFile = files.find(f => f.includes('model') || f.endsWith('.pkl') || f.endsWith('.joblib'));
-    return modelFile || null;
-  }
-
-  extractRecommendations(result) {
-    return result.finalResult?.recommendations || [];
+    this.setupToolHandlers();
+    this.setupResourceHandlers();
+    this.setupPromptHandlers();
   }
 
   async initialize() {
     try {
-      this.logger.info('ML MCP 서버 초기화 시작...');
+      this.logger.info('ML MCP 서버 초기화 시작');
       
-      // 필요한 디렉토리 생성
-      await this.createDirectories();
+      // 메인 프로세서 초기화
+      await this.processor.initialize();
       
-      // 핵심 컴포넌트 초기화
-      await this.modelManager.initialize();
-      await this.pipelineManager.initialize();
-      await this.memoryManager.initialize();
-      
-      this.logger.info('✅ 모든 컴포넌트 초기화 완료');
-      
+      this.isInitialized = true;
+      this.logger.info('ML MCP 서버 초기화 완료');
     } catch (error) {
-      this.logger.error('서버 초기화 실패:', error);
+      this.logger.error('ML MCP 서버 초기화 실패:', error);
       throw error;
     }
   }
 
-  async createDirectories() {
-    const directories = [
-      './results',
-      './temp', 
-      './logs',
-      './data',
-      './uploads'
-    ];
+  setupToolHandlers() {
+    // 도구 목록 반환
+    this.server.setRequestHandler('tools/list', async () => {
+      return {
+        tools: [
+          // 동적 분석 도구들
+          {
+            name: 'dynamic_analysis',
+            description: '사용자 요청에 맞는 Python 분석 모듈을 자동으로 찾아서 실행합니다. 키워드나 자연어로 분석을 요청하면 최적의 모듈을 선택하여 실행합니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: '분석 요청 (예: "상관관계 분석", "클러스터링", "회귀분석", "데이터 시각화")'
+                },
+                data: {
+                  type: 'object',
+                  description: '분석할 데이터 (선택사항). 제공하지 않으면 자동으로 데이터 파일을 감지합니다.',
+                  default: null
+                },
+                options: {
+                  type: 'object',
+                  description: '실행 옵션',
+                  properties: {
+                    timeout: {
+                      type: 'number',
+                      description: '실행 제한 시간 (밀리초)',
+                      default: 300000
+                    },
+                    auto_detect_files: {
+                      type: 'boolean',
+                      description: '데이터 파일 자동 감지 여부',
+                      default: true
+                    },
+                    moduleOptions: {
+                      type: 'object',
+                      description: '모듈별 특정 옵션'
+                    }
+                  },
+                  default: {}
+                }
+              },
+              required: ['query']
+            }
+          },
 
-    for (const dir of directories) {
-      try {
-        await fs.mkdir(dir, { recursive: true });
-      } catch (error) {
-        if (error.code !== 'EEXIST') {
-          throw error;
-        }
+          {
+            name: 'search_modules',
+            description: '사용 가능한 Python 분석 모듈을 검색합니다. 키워드로 관련 모듈을 찾거나 카테고리별로 필터링할 수 있습니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: '검색할 키워드 (예: "correlation", "clustering", "시각화")',
+                  default: ''
+                },
+                category: {
+                  type: 'string',
+                  description: '카테고리 필터',
+                  enum: ['analysis', 'ml', 'visualization', 'data', 'utils', 'custom'],
+                  default: null
+                },
+                limit: {
+                  type: 'number',
+                  description: '결과 개수 제한',
+                  default: 10,
+                  minimum: 1,
+                  maximum: 50
+                }
+              }
+            }
+          },
+
+          {
+            name: 'refresh_modules',
+            description: 'Python 모듈을 다시 스캔하여 새로운 모듈을 발견합니다. 새로운 .py 파일을 추가한 후 이 명령을 실행하세요.',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+              additionalProperties: false
+            }
+          },
+
+          {
+            name: 'module_stats',
+            description: '모듈 시스템의 통계 및 현황을 조회합니다. 전체 모듈 수, 카테고리별 분포, 실행 통계 등을 확인할 수 있습니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+              additionalProperties: false
+            }
+          },
+
+          {
+            name: 'test_module',
+            description: '특정 모듈의 실행을 테스트합니다. 모듈이 올바르게 작동하는지 확인할 때 사용합니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                moduleId: {
+                  type: 'string',
+                  description: '테스트할 모듈 ID (예: "analysis.basic.correlation", "ml.supervised.regression")'
+                },
+                testData: {
+                  type: 'object',
+                  description: '테스트용 데이터 (선택사항)',
+                  default: null
+                }
+              },
+              required: ['moduleId']
+            }
+          },
+
+          {
+            name: 'module_details',
+            description: '특정 모듈의 상세 정보를 조회합니다. 모듈의 함수, 의존성, 사용 통계 등을 확인할 수 있습니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                moduleId: {
+                  type: 'string',
+                  description: '조회할 모듈 ID'
+                }
+              },
+              required: ['moduleId']
+            }
+          },
+
+          {
+            name: 'validate_modules',
+            description: '모든 모듈의 유효성을 검증합니다. 시스템 전체의 모듈 상태를 확인할 때 사용합니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+              additionalProperties: false
+            }
+          },
+
+          // 기존 도구들
+          {
+            name: 'analyze_data',
+            description: '데이터 파일을 분석하고 기본 통계 정보를 제공합니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: '분석 요청 내용'
+                },
+                file_path: {
+                  type: 'string',
+                  description: '분석할 파일 경로 (선택사항)'
+                },
+                auto_detect_files: {
+                  type: 'boolean',
+                  description: '파일 자동 감지 여부',
+                  default: true
+                }
+              },
+              required: ['query']
+            }
+          },
+
+          {
+            name: 'visualize_data',
+            description: '데이터를 시각화하여 차트나 그래프를 생성합니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: '시각화 요청 내용'
+                },
+                chart_type: {
+                  type: 'string',
+                  description: '차트 유형 (선택사항)',
+                  enum: ['bar', 'line', 'scatter', 'histogram', 'heatmap', 'auto']
+                },
+                auto_detect_files: {
+                  type: 'boolean',
+                  description: '파일 자동 감지 여부',
+                  default: true
+                }
+              },
+              required: ['query']
+            }
+          },
+
+          {
+            name: 'train_model',
+            description: '머신러닝 모델을 훈련합니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: '모델 훈련 요청 내용'
+                },
+                model_type: {
+                  type: 'string',
+                  description: '모델 유형 (선택사항)',
+                  enum: ['regression', 'classification', 'clustering', 'auto']
+                },
+                auto_detect_files: {
+                  type: 'boolean',
+                  description: '파일 자동 감지 여부',
+                  default: true
+                }
+              },
+              required: ['query']
+            }
+          },
+
+          {
+            name: 'system_status',
+            description: '시스템 상태를 확인합니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {},
+              additionalProperties: false
+            }
+          },
+
+          {
+            name: 'mode_switch',
+            description: '작업 모드를 전환합니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                mode: {
+                  type: 'string',
+                  description: '전환할 모드',
+                  enum: ['general', 'ml', 'data_analysis', 'visualization']
+                }
+              },
+              required: ['mode']
+            }
+          },
+
+          {
+            name: 'general_query',
+            description: '일반적인 질문이나 요청을 처리합니다.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: '질문이나 요청 내용'
+                }
+              },
+              required: ['query']
+            }
+          }
+        ]
+      };
+    });
+
+    // 도구 실행 핸들러
+    this.server.setRequestHandler('tools/call', async (request) => {
+      const { name, arguments: args } = request.params;
+      
+      if (!this.isInitialized) {
+        throw new Error('서버가 아직 초기화되지 않았습니다.');
       }
+
+      return await this.callTool(name, args);
+    });
+  }
+
+  async callTool(name, args) {
+    try {
+      this.logger.info(`도구 실행: ${name}`, args);
+
+      switch (name) {
+        // 동적 분석 도구들
+        case 'dynamic_analysis':
+          return await this.processor.handleDynamicAnalysis(args);
+
+        case 'search_modules':
+          return await this.processor.handleModuleSearch(args);
+
+        case 'refresh_modules':
+          return await this.processor.handleModuleRefresh(args);
+
+        case 'module_stats':
+          return await this.processor.handleModuleStats(args);
+
+        case 'test_module':
+          return await this.processor.handleModuleTest(args);
+
+        case 'module_details':
+          return await this.processor.handleModuleDetails(args);
+
+        case 'validate_modules':
+          return await this.processor.handleModuleValidation(args);
+
+        // 기존 도구들
+        case 'analyze_data':
+          return await this.processor.handleDataAnalysis(args);
+
+        case 'visualize_data':
+          return await this.processor.handleDataVisualization(args);
+
+        case 'train_model':
+          return await this.processor.handleModelTraining(args);
+
+        case 'system_status':
+          return await this.processor.handleSystemStatus(args);
+
+        case 'mode_switch':
+          return await this.processor.handleModeSwitch(args);
+
+        case 'general_query':
+          return await this.processor.handleGenericTask(args);
+
+        default:
+          throw new Error(`알 수 없는 도구: ${name}`);
+      }
+    } catch (error) {
+      this.logger.error(`도구 실행 실패 (${name}):`, error);
+      return {
+        content: [{
+          type: 'text',
+          text: `❌ **도구 실행 오류**\n\n` +
+                `**도구:** ${name}\n` +
+                `**오류:** ${error.message}\n\n` +
+                `🔍 **해결 방법:**\n` +
+                `   • 인자 형식이 올바른지 확인하세요\n` +
+                `   • "모듈 통계" 명령으로 시스템 상태를 확인하세요\n` +
+                `   • 문제가 지속되면 "모듈 새로고침"을 시도하세요\n\n` +
+                `📋 **제공된 인자:**\n` +
+                `\`\`\`json\n${JSON.stringify(args, null, 2)}\n\`\`\``
+        }]
+      };
     }
+  }
+
+  setupResourceHandlers() {
+    // 리소스 목록 반환
+    this.server.setRequestHandler('resources/list', async () => {
+      return {
+        resources: [
+          {
+            uri: 'analysis://modules',
+            name: '분석 모듈 목록',
+            description: '사용 가능한 모든 분석 모듈의 목록',
+            mimeType: 'application/json'
+          },
+          {
+            uri: 'analysis://stats',
+            name: '시스템 통계',
+            description: '모듈 시스템의 현재 통계 정보',
+            mimeType: 'application/json'
+          },
+          {
+            uri: 'analysis://history',
+            name: '실행 기록',
+            description: '최근 분석 실행 기록',
+            mimeType: 'application/json'
+          }
+        ]
+      };
+    });
+
+    // 리소스 읽기 핸들러
+    this.server.setRequestHandler('resources/read', async (request) => {
+      const { uri } = request.params;
+
+      switch (uri) {
+        case 'analysis://modules':
+          return await this.getModulesResource();
+        case 'analysis://stats':
+          return await this.getStatsResource();
+        case 'analysis://history':
+          return await this.getHistoryResource();
+        default:
+          throw new Error(`알 수 없는 리소스: ${uri}`);
+      }
+    });
+  }
+
+  async getModulesResource() {
+    try {
+      const modules = await this.processor.dynamicLoader.getAvailableModules();
+      return {
+        contents: [{
+          uri: 'analysis://modules',
+          mimeType: 'application/json',
+          text: JSON.stringify(modules, null, 2)
+        }]
+      };
+    } catch (error) {
+      this.logger.error('모듈 리소스 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  async getStatsResource() {
+    try {
+      const stats = this.processor.dynamicLoader.getModuleStats();
+      return {
+        contents: [{
+          uri: 'analysis://stats',
+          mimeType: 'application/json',
+          text: JSON.stringify(stats, null, 2)
+        }]
+      };
+    } catch (error) {
+      this.logger.error('통계 리소스 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  async getHistoryResource() {
+    try {
+      const history = this.processor.dynamicLoader.getExecutionHistory(20);
+      return {
+        contents: [{
+          uri: 'analysis://history',
+          mimeType: 'application/json',
+          text: JSON.stringify(history, null, 2)
+        }]
+      };
+    } catch (error) {
+      this.logger.error('히스토리 리소스 조회 실패:', error);
+      throw error;
+    }
+  }
+
+  setupPromptHandlers() {
+    // 프롬프트 목록 반환
+    this.server.setRequestHandler('prompts/list', async () => {
+      return {
+        prompts: [
+          {
+            name: 'analysis_guide',
+            description: '데이터 분석 가이드 프롬프트',
+            arguments: [
+              {
+                name: 'data_type',
+                description: '데이터 유형',
+                required: false
+              }
+            ]
+          },
+          {
+            name: 'module_creation',
+            description: '새 모듈 생성 가이드',
+            arguments: [
+              {
+                name: 'analysis_type',
+                description: '분석 유형',
+                required: true
+              }
+            ]
+          }
+        ]
+      };
+    });
+
+    // 프롬프트 가져오기 핸들러
+    this.server.setRequestHandler('prompts/get', async (request) => {
+      const { name, arguments: args } = request.params;
+
+      switch (name) {
+        case 'analysis_guide':
+          return await this.getAnalysisGuidePrompt(args);
+        case 'module_creation':
+          return await this.getModuleCreationPrompt(args);
+        default:
+          throw new Error(`알 수 없는 프롬프트: ${name}`);
+      }
+    });
+  }
+
+  async getAnalysisGuidePrompt(args) {
+    const dataType = args?.data_type || '일반';
+    
+    return {
+      description: `${dataType} 데이터 분석 가이드`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `${dataType} 데이터를 분석하는 방법에 대해 단계별로 안내해주세요. 사용 가능한 분석 모듈과 추천 분석 방법을 포함해주세요.`
+          }
+        }
+      ]
+    };
+  }
+
+  async getModuleCreationPrompt(args) {
+    const analysisType = args?.analysis_type || '기본';
+    
+    return {
+      description: `${analysisType} 분석 모듈 생성 가이드`,
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: `${analysisType} 분석을 위한 새 Python 모듈을 만드는 방법을 알려주세요. 파일 구조, 필수 함수, 그리고 예제 코드를 포함해주세요.`
+          }
+        }
+      ]
+    };
   }
 
   async run() {
     try {
-      // 초기화
+      // 서버 초기화
       await this.initialize();
-      
-      // MCP 서버 시작
+
+      // Transport 설정
       const transport = new StdioServerTransport();
+      
+      // 서버 실행
       await this.server.connect(transport);
       
-      this.logger.info('🚀 ML MCP 서버가 시작되었습니다.');
+      this.logger.info('ML MCP 서버가 성공적으로 시작되었습니다');
       
-      // 정리 작업을 위한 시그널 핸들러
+      // 프로세스 종료 핸들러
       process.on('SIGINT', async () => {
-        this.logger.info('서버 종료 신호 수신...');
+        this.logger.info('서버 종료 중...');
         await this.cleanup();
         process.exit(0);
       });
 
       process.on('SIGTERM', async () => {
-        this.logger.info('서버 종료 신호 수신...');
+        this.logger.info('서버 종료 중...');
         await this.cleanup();
         process.exit(0);
       });
-      
+
     } catch (error) {
-      this.logger.error('서버 시작 실패:', error);
+      this.logger.error('서버 실행 실패:', error);
       process.exit(1);
     }
   }
 
   async cleanup() {
     try {
-      this.logger.info('서버 정리 작업 시작...');
+      this.logger.info('서버 정리 작업 시작');
       
-      // 모델 정리
-      if (this.modelManager) {
-        await this.modelManager.cleanup();
+      // 필요한 정리 작업 수행
+      if (this.processor) {
+        await this.processor.cleanup?.();
       }
       
-      // 메모리 정리
-      if (this.memoryManager) {
-        await this.memoryManager.cleanup();
-      }
-      
-      // 활성 세션 정리
-      this.activeSessions.clear();
-      
-      this.logger.info('✅ 서버 정리 완료');
-      
+      this.logger.info('서버 정리 작업 완료');
     } catch (error) {
-      this.logger.error('정리 작업 중 오류:', error);
+      this.logger.error('서버 정리 작업 실패:', error);
     }
   }
 }
 
-// 서버 시작
+// 메인 실행
 async function main() {
   const server = new MLMCPServer();
   await server.run();
@@ -967,7 +613,7 @@ async function main() {
 
 // 에러 핸들링
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection:', reason);
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
 });
 
@@ -976,9 +622,12 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-// 실행
+// 스크립트가 직접 실행될 때만 메인 함수 호출
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(console.error);
+  main().catch(error => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  });
 }
 
-export default MLMCPServer;
+export { MLMCPServer };
