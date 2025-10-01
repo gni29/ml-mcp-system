@@ -285,3 +285,9 @@ integration_test.js
 # visualization-config.json
 # pipeline-templates.json
 # deep-learning-config.json
+
+# ====================
+# Windows Reserved Names
+# ====================
+nul
+python/nul

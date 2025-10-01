@@ -1,27 +1,124 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-분포 분석 및 이상치 탐지
-JavaScript에서 DataFrame 데이터를 받아서 분포 특성을 분석하고 이상치를 탐지합니다.
+Distribution Analysis and Outlier Detection Module
+분포 분석 및 이상치 탐지 모듈
+
+이 모듈은 데이터셋의 수치형 변수들의 분포 특성을 분석하고 이상치를 탐지합니다.
+주요 기능:
+- 분포 형태 분석 (정규성, 왜도, 첨도)
+- 통계적 정규성 검정 (Shapiro-Wilk, D'Agostino, Kolmogorov-Smirnov)
+- 이상치 탐지 (IQR, Z-score, Modified Z-score)
+- 분포 요약 통계 및 시각화 권고
+- 데이터 변환 제안
 """
 
-import pandas as pd
-import numpy as np
-from scipy import stats
-from scipy.stats import shapiro, normaltest, kstest, skew, kurtosis
 import sys
 import json
+import pandas as pd
+import numpy as np
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+from scipy import stats
+from scipy.stats import shapiro, normaltest, kstest, skew, kurtosis
 import warnings
 warnings.filterwarnings('ignore')
 
-def analyze_distribution(df):
+# 공유 유틸리티 경로 추가
+sys.path.append(str(Path(__file__).parent.parent.parent.parent / "ml-mcp-shared" / "python"))
+
+try:
+    from common_utils import load_data, get_data_info, create_analysis_result, output_results, validate_required_params
+except ImportError:
+    # 공유 유틸리티 import 실패 시 대체 구현
+    def load_data(file_path: str) -> pd.DataFrame:
+        """데이터 파일 로드"""
+        file_path = Path(file_path)
+        if file_path.suffix.lower() == '.csv':
+            return pd.read_csv(file_path)
+        elif file_path.suffix.lower() in ['.xlsx', '.xls']:
+            return pd.read_excel(file_path)
+        else:
+            raise ValueError(f"지원하지 않는 파일 형식: {file_path.suffix}")
+
+    def get_data_info(df: pd.DataFrame) -> Dict[str, Any]:
+        """데이터프레임 기본 정보 추출"""
+        return {
+            "shape": df.shape,
+            "columns": df.columns.tolist(),
+            "numeric_columns": df.select_dtypes(include=[np.number]).columns.tolist(),
+            "categorical_columns": df.select_dtypes(include=['object', 'category']).columns.tolist()
+        }
+
+    def create_analysis_result(analysis_type: str, data_info: Dict[str, Any], results: Dict[str, Any], summary: str = None) -> Dict[str, Any]:
+        """표준화된 분석 결과 구조 생성"""
+        return {
+            "analysis_type": analysis_type,
+            "timestamp": pd.Timestamp.now().isoformat(),
+            "data_info": data_info,
+            "summary": summary or f"{analysis_type} 분석 완료",
+            **results
+        }
+
+    def output_results(results: Dict[str, Any]):
+        """결과를 JSON 형태로 출력"""
+        def comprehensive_json_serializer(obj):
+            """포괄적인 JSON 직렬화 함수"""
+            if isinstance(obj, (np.int8, np.int16, np.int32, np.int64)):
+                return int(obj)
+            elif isinstance(obj, (np.float16, np.float32, np.float64)):
+                return float(obj)
+            elif isinstance(obj, np.bool_):
+                return bool(obj)
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            elif isinstance(obj, pd.Index):
+                return obj.tolist()
+            elif isinstance(obj, pd.Series):
+                return obj.tolist()
+            elif hasattr(obj, 'item'):  # numpy scalars
+                return obj.item()
+            elif hasattr(obj, 'to_dict') and callable(obj.to_dict):
+                return obj.to_dict()
+            elif hasattr(obj, '__dict__') and not isinstance(obj, type):
+                return str(obj)
+            else:
+                return str(obj)
+
+        try:
+            print(json.dumps(results, ensure_ascii=False, indent=2, default=comprehensive_json_serializer))
+        except Exception as e:
+            # 최후의 수단: 모든 것을 문자열로 변환
+            error_output = {
+                "success": False,
+                "error": f"JSON 직렬화 실패: {str(e)}",
+                "error_type": "SerializationError"
+            }
+            print(json.dumps(error_output, ensure_ascii=False, indent=2))
+
+    def validate_required_params(params: Dict[str, Any], required: list):
+        """필수 매개변수 검증"""
+        missing = [param for param in required if param not in params]
+        if missing:
+            raise ValueError(f"필수 매개변수가 누락됨: {', '.join(missing)}")
+
+def analyze_distribution(df: pd.DataFrame) -> Dict[str, Any]:
     """
-    전체 분포 분석 수행
-    
-    Args:
-        df (pd.DataFrame): 분석할 데이터프레임
-        
+    수치형 변수들의 포괄적인 분포 분석 수행
+
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        분석할 데이터프레임
+
     Returns:
-        dict: 분포 분석 결과
+    --------
+    Dict[str, Any]
+        분포 분석 결과
+        - distribution_statistics: 각 변수별 분포 통계량
+        - normality_tests: 정규성 검정 결과
+        - outlier_analysis: 이상치 탐지 결과
+        - distribution_insights: 분포 해석 및 권고사항
     """
     try:
         # 숫자형 컬럼만 선택
@@ -431,29 +528,121 @@ def calculate_histogram_info(numeric_df):
 
 def main():
     """
-    메인 함수 - JavaScript에서 DataFrame 데이터 받기
+    메인 실행 함수 - 분포 분석의 진입점
+
+    표준 입출력을 통해 JSON 데이터를 받아 분포 분석을 수행하고
+    표준화된 형태로 결과를 반환합니다.
+
+    입력 형식:
+    - JSON을 통한 데이터 또는 파일 경로
+    - 선택적 매개변수: file_path, analysis_options
+
+    출력 형식:
+    - 표준화된 분석 결과 JSON
+    - 성공/실패 상태 포함
+    - 한국어 해석 및 권고사항
     """
     try:
-        # 표준 입력에서 DataFrame 데이터 받기
+        # stdin에서 JSON 데이터 읽기
         input_data = sys.stdin.read()
-        
-        # JSON을 DataFrame으로 변환
-        data_dict = json.loads(input_data)
-        df = pd.DataFrame(data_dict)
-        
+        params = json.loads(input_data)
+
+        # 파일 경로가 제공된 경우 파일에서 데이터 로드
+        if 'file_path' in params:
+            df = load_data(params['file_path'])
+        else:
+            # JSON 데이터에서 직접 DataFrame 생성
+            if 'data' in params:
+                df = pd.DataFrame(params['data'])
+            else:
+                df = pd.DataFrame(params)
+
+        # 데이터 기본 정보 추출
+        data_info = get_data_info(df)
+
         # 분포 분석 수행
-        result = analyze_distribution(df)
-        
-        # 결과를 JSON으로 출력
-        print(json.dumps(result, ensure_ascii=False, indent=2))
-        
-    except Exception as e:
-        error_result = {
-            'success': False,
-            'error': str(e),
-            'error_type': 'DistributionAnalysisError'
+        distribution_result = analyze_distribution(df)
+
+        if not distribution_result.get('success', True):
+            error_result = {
+                "success": False,
+                "error": distribution_result.get('error', '분포 분석 실패'),
+                "analysis_type": "distribution_analysis",
+                "available_columns": distribution_result.get('available_columns', [])
+            }
+            output_results(error_result)
+            return
+
+        # 분석 결과 통합 - 안전한 직렬화를 위해 단계별 처리
+        def safe_extract_value(obj, path, default=None):
+            """안전하게 중첩 딕셔너리에서 값 추출"""
+            try:
+                current = obj
+                for key in path:
+                    if isinstance(current, dict) and key in current:
+                        current = current[key]
+                    else:
+                        return default
+                return current
+            except:
+                return default
+
+        analysis_results = {
+            "distribution_analysis": distribution_result,
+            "analysis_summary": {
+                "analyzed_columns_count": len(distribution_result.get('analyzed_columns', [])),
+                "normality_results": {},
+                "outlier_summary": {}
+            }
         }
-        print(json.dumps(error_result, ensure_ascii=False, indent=2))
+
+        # 정규성 결과 안전하게 추출
+        normality_tests = distribution_result.get('normality_tests', {})
+        if isinstance(normality_tests, dict):
+            for col, result in normality_tests.items():
+                if isinstance(result, dict):
+                    is_normal = safe_extract_value(result, ['overall_conclusion', 'is_normal'], None)
+                    analysis_results["analysis_summary"]["normality_results"][col] = is_normal
+
+        # 이상치 요약 안전하게 추출
+        outlier_detection = distribution_result.get('outlier_detection', {})
+        if isinstance(outlier_detection, dict):
+            for col, result in outlier_detection.items():
+                if isinstance(result, dict):
+                    severity = safe_extract_value(result, ['consensus', 'severity'], 'Unknown')
+                    analysis_results["analysis_summary"]["outlier_summary"][col] = severity
+
+        # 요약 생성
+        analyzed_count = len(distribution_result.get('analyzed_columns', []))
+        normal_cols = sum(1 for result in distribution_result.get('normality_tests', {}).values()
+                         if isinstance(result, dict) and
+                         result.get('overall_conclusion', {}).get('is_normal', False))
+        summary = f"분포 분석 완료 - {analyzed_count}개 수치형 변수 분석, {normal_cols}개 정규분포 변수 확인"
+
+        # 표준화된 결과 생성 - 단순화하여 순환 참조 방지
+        final_result = {
+            "analysis_type": "distribution_analysis",
+            "timestamp": pd.Timestamp.now().isoformat(),
+            "data_info": data_info,
+            "summary": summary,
+            "distribution_analysis": distribution_result,
+            "analysis_summary": analysis_results["analysis_summary"]
+        }
+
+        # 결과 출력
+        output_results(final_result)
+
+    except Exception as e:
+        import traceback
+        error_result = {
+            "success": False,
+            "error": str(e),
+            "error_details": traceback.format_exc(),
+            "analysis_type": "distribution_analysis",
+            "timestamp": pd.Timestamp.now().isoformat()
+        }
+        output_results(error_result)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

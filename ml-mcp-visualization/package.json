@@ -1,0 +1,44 @@
+{
+  "name": "ml-mcp-visualization",
+  "version": "1.0.0",
+  "description": "Visualization MCP - 고급 데이터 시각화 및 차트 생성 시스템",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "dev": "node --inspect main.js",
+    "test": "node test/test.js"
+  },
+  "keywords": [
+    "mcp",
+    "visualization",
+    "charts",
+    "plots",
+    "dashboard",
+    "graphics"
+  ],
+  "author": "ML MCP Team",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "ml-mcp-shared": "file:../ml-mcp-shared"
+  },
+  "peerDependencies": {
+    "matplotlib": "*",
+    "seaborn": "*",
+    "plotly": "*",
+    "pandas": "*",
+    "numpy": "*",
+    "scipy": "*",
+    "bokeh": "*"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.8.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ml-mcp-team/ml-mcp-system.git",
+    "directory": "ml-mcp-visualization"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "name": "ml-mcp-ml",
+  "version": "1.0.0",
+  "description": "Machine Learning MCP - 고급 머신러닝 및 예측 모델링 시스템",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "dev": "node --inspect main.js",
+    "test": "node test/test.js"
+  },
+  "keywords": [
+    "mcp",
+    "machine-learning",
+    "ml",
+    "prediction",
+    "modeling",
+    "advanced-analytics"
+  ],
+  "author": "ML MCP Team",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "ml-mcp-shared": "file:../ml-mcp-shared"
+  },
+  "peerDependencies": {
+    "scikit-learn": "*",
+    "tensorflow": "*",
+    "pandas": "*",
+    "numpy": "*",
+    "scipy": "*",
+    "matplotlib": "*",
+    "seaborn": "*",
+    "joblib": "*"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.8.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ml-mcp-team/ml-mcp-system.git",
+    "directory": "ml-mcp-ml"
+  }
+}

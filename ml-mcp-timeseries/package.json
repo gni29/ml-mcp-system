@@ -1,0 +1,32 @@
+{
+  "name": "ml-mcp-timeseries",
+  "version": "1.0.0",
+  "description": "Time Series Forecasting MCP Server - Prophet, ARIMA, Advanced Forecasting",
+  "type": "module",
+  "main": "main.js",
+  "bin": {
+    "ml-mcp-timeseries": "./main.js"
+  },
+  "scripts": {
+    "start": "node main.js",
+    "test": "echo \"Test suite not implemented yet\"",
+    "lint": "eslint ."
+  },
+  "keywords": [
+    "mcp",
+    "timeseries",
+    "forecasting",
+    "prophet",
+    "arima",
+    "prediction"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "ml-mcp-shared": "file:../ml-mcp-shared"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

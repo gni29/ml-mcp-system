@@ -1,0 +1,33 @@
+{
+  "name": "ml-mcp-analysis",
+  "version": "1.0.0",
+  "description": "Lightweight Data Analysis MCP - 경량 데이터 분석 MCP 시스템",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js",
+    "dev": "node --inspect main.js",
+    "test": "node test/test.js"
+  },
+  "keywords": [
+    "mcp",
+    "data-analysis",
+    "statistics",
+    "lightweight"
+  ],
+  "author": "ML MCP Team",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "ml-mcp-shared": "file:../ml-mcp-shared"
+  },
+  "peerDependencies": {
+    "pandas": "*",
+    "numpy": "*",
+    "scipy": "*"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.8.0"
+  }
+}

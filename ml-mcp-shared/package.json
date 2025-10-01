@@ -1,0 +1,27 @@
+{
+  "name": "ml-mcp-shared",
+  "version": "1.0.0",
+  "description": "Shared utilities for ML MCP ecosystem",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    "./utils/logger": "./utils/logger.js",
+    "./utils/logger.js": "./utils/logger.js",
+    "./utils/base-service": "./utils/base-service.js",
+    "./utils/base-service.js": "./utils/base-service.js",
+    "./python/data-loader.py": "./python/data-loader.py",
+    "./python/common-utils.py": "./python/common-utils.py"
+  },
+  "keywords": [
+    "mcp",
+    "utilities",
+    "shared",
+    "ml"
+  ],
+  "author": "ML MCP Team",
+  "license": "MIT",
+  "dependencies": {
+    "winston": "^3.17.0",
+    "chalk": "^5.4.1"
+  }
+}
