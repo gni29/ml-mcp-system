@@ -195,14 +195,23 @@ test_results/
 test_output/
 test_visualizations/
 screenshots/
+test_scatter/
+test_dashboard.html
+test_results_summary.md
+test_integration.js
+integration_test.js
+example_script.py
 
 # Generated files from testing
 processed_data.csv
 feature_transformers_*.joblib
 *.png
-*.html
 regressor_*.joblib
 classifier_*.joblib
+
+# HTML files (except documentation)
+*.html
+!docs/**/*.html
 
 # Local configuration overrides
 local.config.js
@@ -219,3 +228,60 @@ PROGRESS_PLAN.md
 TODO.md
 NOTES.md
 DEVELOPMENT_LOG.md
+PHASE_7_8_COMPLETION_SUMMARY.md
+PHASE_8_COMPLETION_SUMMARY.md
+PHASE_9_COMPLETION_SUMMARY.md
+PROGRESS_PLAN_KR.md
+
+# Progress tracking folder
+progress/
+
+# results folder - track folder but ignore contents
+results/*
+!results/.gitkeep
+
+# ====================
+# Python Virtual Environments & Site Packages
+# ====================
+ml-mcp-system/
+Lib/
+Scripts/
+Include/
+pyvenv.cfg
+site-packages/
+
+# ====================
+# Data files (keep structure, ignore data)
+# ====================
+data/*.csv
+data/*.xlsx
+data/*.json
+data/*.parquet
+!data/.gitkeep
+
+# Claude Code project files
+.claude/
+
+# ====================
+# Old/Backup Python files
+# ====================
+*_old.py
+*_backup.py
+correlation_old.py
+
+# ====================
+# Duplicate/Alternative Entry Points
+# ====================
+# Keep main.js (primary), main-modular.js (modular version)
+# Keep cli.js (standalone CLI)
+# Keep mcp-cli.js (bin entry point)
+# Remove test integration files
+integration_test.js
+
+# Config files (if generated/not needed)
+# Keep: package.json, package-lock.json
+# Keep config JSONs for reference
+# analysis-methods.json
+# visualization-config.json
+# pipeline-templates.json
+# deep-learning-config.json
